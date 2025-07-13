@@ -16,6 +16,20 @@ conda activate cfc
 pip install -r requirements.txt
 ```
 
+###  Dataset Preparation
+1. Create dataset directory:
+   ```bash
+   mkdir -p datasets
+   ```
+  
+2. Download datasets from these sources:
+
+- NNFC Datasets: https://github.com/mlyizhang/nnfc
+
+- MUFC Datasets: https://github.com/thupchnsky/mufc
+
+3. Place the downloaded datasets in the datasets/ folder
+
 ### Setup Environment
 configs/
 └── cfc_config_ep1000.json
