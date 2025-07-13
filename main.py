@@ -11,7 +11,7 @@ import os
 
 def main():
     parser = argparse.ArgumentParser(description="Unified experiment runner with config file")
-    parser.add_argument('--config', type=str, required=True, help='Path to JSON config file')
+    parser.add_argument('--config', type=str, required=True, default="cfc")
     parser.add_argument('--ep', type=float, default=1000)
     args = parser.parse_args()
 
