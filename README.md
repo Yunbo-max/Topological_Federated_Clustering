@@ -1,74 +1,45 @@
-# CFC: Federated Clustering Framework
-==================================
+# 🌀 CFC: Federated Clustering Framework
 
-╔════════════════════════════════════════════════════╗
-║  ██████╗ ██████╗ ██████╗   FEDERATED CLUSTERING   ║
-║ ██╔════╝██╔═══██╗██╔══██╗      FRAMEWORK         ║
-║ ██║     ██║   ██║██████╔╝                        ║
-║ ██║     ██║   ██║██╔═══╝                         ║
-║ ╚██████╗╚██████╔╝██║                              ║
-║  ╚═════╝ ╚═════╝ ╚═╝                              ║
-╚════════════════════════════════════════════════════╝
+![License](https://img.shields.io/badge/license-MIT-green)
 
-✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦
 
-🚀 SETUP INSTRUCTIONS
-───────────────────────────────────────────────────
+## 🛠 Installation
 
-1. Create Conda Environment:
-   └─▶ conda create -n cfc_env python=3.8 -y
-   └─▶ conda activate cfc_env
+### Prerequisites
+- Conda (recommended)
+- Python 3.10+
 
-2. Install Dependencies:
-   └─▶ pip install -r requirements.txt
+### Setup Environment
+```bash
+conda create -n cfc python=3.10 -y
+conda activate cfc
+pip install -r requirements.txt
+```
 
-⚙️ CONFIGURATION
-───────────────────────────────────────────────────
-Config file location:
-   └─▶ /Users/yunbo/Documents/GitHub/CFC_Federated_Clustering/
-       CFC_Federated_Clustering/configs/cfc_config_ep1000.json
+### Setup Environment
+configs/
+└── cfc_config_ep1000.json
 
-Sample Config:
-▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼▼
+```bash
 {
   "model": "cfc",
   "datanames": ["mnist2d"],
   "seed": 1,
   "n_runs": 1,
-  "epsilon": 1,
-  "save_path": "results/cfc_epsilon_1.txt",
+  "save_path": "results/output.txt",
   "mnist2d": {
     "k1": 200,
-    "candidates_multiplier": 2,
-    "energy_multiplier": 13
+    "energy_multiplier": 13,
+    "energy_multiplier": 13,
+      "energy_threshold":90
   }
-}
-▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+```
 
-🏃 RUNNING THE FRAMEWORK
-───────────────────────────────────────────────────
-Basic Command:
-   ┌─▶ python main.py --config cfc --ep 1000
-   └─── (Uses default 'cfc' config with 1000 epochs)
-
-Example with kfed config:
-   ┌─▶ python main.py --config kfed --ep 1000
-   └─── (Runs with 'kfed' configuration)
-
-Command Arguments:
-┌──────────────────┬──────────┬───────────┬─────────────────────┐
-│    Argument      │   Type   │  Default  │     Description     │
-├──────────────────┼──────────┼───────────┼─────────────────────┤
-│ --config         │ string   │ "cfc"     │ Configuration name  │
-│ --ep             │ float    │ 1000      │ Number of epochs    │
-└──────────────────┴──────────┴───────────┴─────────────────────┘
-
-📂 PROJECT STRUCTURE
-───────────────────────────────────────────────────
-CFC_Federated_Clustering/
-├── 📁 configs/       # JSON configuration files
-├── 📁 results/       # Output directory
-├── 📄 main.py        # Main implementation
-└── 📄 requirements.txt # Dependencies
-
-✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦ ✦
+### Running experiments
+```bash
+python main.py --config cfc --ep 1000
+python main.py --config cfc --ep 1
+python main.py --config cfc+ --ep 0.1
+python main.py --config nnfc --ep 0.01
+.........
+```
