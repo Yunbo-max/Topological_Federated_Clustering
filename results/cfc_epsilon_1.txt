@@ -382,3 +382,21 @@ NMI (max) across seeds: [0.7421]
 Mean ± Std - ARI: 0.5386 ± 0.0000
 Mean ± Std - NMI: 0.7421 ± 0.0000
 
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.3639]
+NMI (max) across seeds: [0.5938]
+Mean ± Std - ARI: 0.3639 ± 0.0000
+Mean ± Std - NMI: 0.5938 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.5939]
+NMI (max) across seeds: [0.7752]
+Mean ± Std - ARI: 0.5939 ± 0.0000
+Mean ± Std - NMI: 0.7752 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.763]
+NMI (max) across seeds: [0.8575]
+Mean ± Std - ARI: 0.7630 ± 0.0000
+Mean ± Std - NMI: 0.8575 ± 0.0000
+

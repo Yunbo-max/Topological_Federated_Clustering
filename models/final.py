@@ -216,7 +216,7 @@ def plot_region_tree(root):
         pos_str = f"{node.weighted_position.round(2)}" if node.weighted_position is not None else "None"
         print(f"{pre}{node.name} (P: {node.potential:.2f}, Pos: {pos_str})")
 
-def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplier, n_threshold_steps=100):
+def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplier, n_threshold_steps=200):
     """Select centroids with tree-based region evolution tracking"""
     n = data.shape[0]
     
@@ -287,8 +287,8 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
         }
         
         prev_labels = current_labels
-        # if n_regions >= 10:
-        #     break
+        if n_regions >= 10:
+            break
     
     # Visualization for 2D
     import matplotlib.pyplot as plt
@@ -323,36 +323,54 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
     
     # Build the region tree
     root = build_region_tree(region_evolution, synthetic_candidates, total_energy)
-    
+
     # Normalize potentials across the tree
     all_potentials = np.array([node.potential for node in root.descendants])
     if len(all_potentials) > 0:
         max_potential = np.max(all_potentials)
         for node in root.descendants:
             node.normalized_potential = node.potential / max_potential
-    
-    # # Print tree structure
-    # print("Region Evolution Tree:")
-    # plot_region_tree(root)
-    
-    # Select centroids - take top nodes by potential
-    all_nodes = list(root.descendants)
-    all_nodes.sort(key=lambda x: x.potential, reverse=True)
-    centroid_nodes = all_nodes[:nc]
-    
-    # Get centroid positions (use weighted position if available, otherwise first point)
+
+    # Breadth-first centroid selection
+    selected_nodes = []
+    current_level = list(root.children)  # Start with first level below root
+    remaining = nc
+
+    while remaining > 0 and current_level:
+        # Sort current level by potential (descending)
+        current_level.sort(key=lambda x: x.potential, reverse=True)
+        
+        # Take up to 'remaining' nodes from this level
+        take = min(remaining, len(current_level))
+        selected_nodes.extend(current_level[:take])
+        remaining -= take
+        
+        # If we still need more, prepare next level
+        if remaining > 0:
+            next_level = []
+            for node in current_level:
+                next_level.extend(node.children)
+            current_level = next_level
+
+    # Now we have exactly nc nodes (or fewer if tree isn't deep enough)
+    if len(selected_nodes) < nc:
+        # Fallback: take highest potential nodes from entire tree
+        all_nodes = list(root.descendants)
+        all_nodes.sort(key=lambda x: x.potential, reverse=True)
+        selected_nodes = all_nodes[:nc]
+
+    # Get centroid positions
     centroids = []
-    for node in centroid_nodes:
+    for node in selected_nodes:
         if node.weighted_position is not None:
             centroids.append(node.weighted_position)
         elif len(node.positions) > 0:
             centroids.append(node.positions[0][0])  # First position
-    
+
     centroid_indices = [np.argmin(pairwise_distances([c], synthetic_candidates)[0]) for c in centroids]
     centroid_indices_arr = np.array(centroid_indices, dtype=np.int32)
-    
-    return synthetic_candidates[centroid_indices_arr], centroid_indices_arr
 
+    return synthetic_candidates[centroid_indices_arr], centroid_indices_arr
 
 
 def SNN_optimized(nc: int, data: np.ndarray,candidates_multiplier, energy_multiplier) -> Tuple[np.ndarray, np.ndarray]:
