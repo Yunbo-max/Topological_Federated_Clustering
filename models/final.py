@@ -42,6 +42,32 @@ def dist(a, b, ax=1):
     """Compute distance between two points"""
     return np.linalg.norm(a - b, axis=ax)
 
+def generate_synthetic_candidates(data, n_candidates_multiplier=1.5):
+    """Generate synthetic candidate points using a grid approach"""
+    n_candidates = int(len(data) * n_candidates_multiplier)
+    
+    # Create grid based on data bounds
+    mins = np.min(data, axis=0)
+    maxs = np.max(data, axis=0)
+    
+    # Expand bounds slightly
+    range_expand = 0.1
+    mins -= range_expand * (maxs - mins)
+    maxs += range_expand * (maxs - mins)
+    
+    # Generate grid points
+    if data.shape[1] == 2:
+        grid_size = int(np.sqrt(n_candidates))
+        x = np.linspace(mins[0], maxs[0], grid_size)
+        y = np.linspace(mins[1], maxs[1], grid_size)
+        xx, yy = np.meshgrid(x, y)
+        candidates = np.column_stack([xx.ravel(), yy.ravel()])
+    else:
+        # For higher dimensions, use random sampling within bounds
+        candidates = np.random.uniform(mins, maxs, (n_candidates, data.shape[1]))
+    
+    return candidates
+
 
 import numpy as np
 from scipy.spatial.distance import pdist, squareform
@@ -71,97 +97,207 @@ from scipy.spatial.distance import squareform, pdist
 
 
 
-import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.neighbors import NearestNeighbors
-from sklearn.metrics.pairwise import pairwise_distances
-from scipy.spatial.distance import pdist, squareform
-from typing import Tuple
 
-def generate_synthetic_candidates(data, n_candidates_multiplier=1.5):
-    """Generate synthetic candidate points using a grid approach"""
-    n_candidates = int(len(data) * n_candidates_multiplier)
-    
-    # Create grid based on data bounds
-    mins = np.min(data, axis=0)
-    maxs = np.max(data, axis=0)
-    
-    # Expand bounds slightly
-    range_expand = 0.1
-    mins -= range_expand * (maxs - mins)
-    maxs += range_expand * (maxs - mins)
-    
-    # Generate grid points
-    if data.shape[1] == 2:
-        grid_size = int(np.sqrt(n_candidates))
-        x = np.linspace(mins[0], maxs[0], grid_size)
-        y = np.linspace(mins[1], maxs[1], grid_size)
-        xx, yy = np.meshgrid(x, y)
-        candidates = np.column_stack([xx.ravel(), yy.ravel()])
-    else:
-        # For higher dimensions, use random sampling within bounds
-        candidates = np.random.uniform(mins, maxs, (n_candidates, data.shape[1]))
-    
-    return candidates
+from scipy.ndimage import label
+from collections import defaultdict
+import numpy as np
+from sklearn.metrics import pairwise_distances
+import matplotlib.pyplot as plt
+from scipy.ndimage import label as ndi_label
+from collections import defaultdict
 
 from scipy.spatial.distance import cdist
 
-def penalized_energy_centroids(data, nc,candidates_multiplier,energy_multiplier):
-    """Select centroids directly from synthetic candidates using energy-based method"""
+
+import numpy as np
+from collections import defaultdict
+from anytree import Node, RenderTree
+import matplotlib.pyplot as plt
+from scipy.ndimage import label as ndi_label
+
+
+import numpy as np
+from collections import defaultdict
+from anytree import Node, RenderTree
+import matplotlib.pyplot as plt
+
+class RegionNode(Node):
+    """Extended Node class to store region information"""
+    def __init__(self, name, potential, positions, parent=None, children=None):
+        super().__init__(name, parent, children)
+        self.potential = potential
+        self.positions = positions
+        self.weighted_position = self.calculate_weighted_position()
+        self.normalized_potential = 0
+        
+    def calculate_weighted_position(self):
+        if len(self.positions) == 0:
+            return None
+        weights = np.array([p[1] for p in self.positions])  # potentials as weights
+        positions = np.array([p[0] for p in self.positions])
+        if np.sum(weights) > 0:
+            weights = weights / np.sum(weights)  # normalize
+        return np.sum(positions * weights[:, np.newaxis], axis=0)
+
+def build_region_tree(region_evolution, synthetic_candidates, total_energy):
+    """Build a tree structure representing region evolution"""
+    # Create root node (all points as one region)
+    root_potential = np.sum(total_energy)
+    root_positions = list(zip(synthetic_candidates, total_energy))
+    root = RegionNode("Root", root_potential, root_positions)
+    
+    # Track current level nodes
+    current_nodes = {1: root}  # Using region labels as keys
+    
+    for step, info in region_evolution.items():
+        next_nodes = {}
+        splits = info['splits']
+        current_labels = info['labels']
+        
+        # Create mapping from new labels to their parent labels
+        parent_child_map = defaultdict(list)
+        for child, parent in splits.items():
+            parent_child_map[parent].append(child)
+        
+        # Process each current node
+        for parent_label, parent_node in current_nodes.items():
+            if parent_label not in parent_child_map:
+                # Region didn't split - create single child with same label
+                child_mask = (current_labels == parent_label)
+                if np.sum(child_mask) == 0:
+                    continue
+                    
+                child_potential = np.sum(total_energy[child_mask])
+                child_positions = list(zip(synthetic_candidates[child_mask], 
+                                         total_energy[child_mask]))
+                child_node = RegionNode(f"R{parent_label}-S{step}", 
+                                      child_potential, 
+                                      child_positions,
+                                      parent=parent_node)
+                next_nodes[parent_label] = child_node
+            else:
+                # Region split into multiple children
+                for child_label in parent_child_map[parent_label]:
+                    child_mask = (current_labels == child_label)
+                    if np.sum(child_mask) == 0:
+                        continue
+                        
+                    child_potential = np.sum(total_energy[child_mask])
+                    child_positions = list(zip(synthetic_candidates[child_mask], 
+                                           total_energy[child_mask]))
+                    child_node = RegionNode(f"R{child_label}-S{step}", 
+                                        child_potential, 
+                                        child_positions,
+                                        parent=parent_node)
+                    next_nodes[child_label] = child_node
+        
+        current_nodes = next_nodes
+    
+    return root
+
+def plot_region_tree(root):
+    """Visualize the region tree"""
+    for pre, _, node in RenderTree(root):
+        pos_str = f"{node.weighted_position.round(2)}" if node.weighted_position is not None else "None"
+        print(f"{pre}{node.name} (P: {node.potential:.2f}, Pos: {pos_str})")
+
+def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplier, n_threshold_steps=20):
+    """Select centroids with tree-based region evolution tracking"""
     n = data.shape[0]
     
     # Generate synthetic candidates
     synthetic_candidates = generate_synthetic_candidates(data, n_candidates_multiplier=candidates_multiplier)
     
-    # Calculate distances from data points to synthetic candidates
-    # candidate_distances = pairwise_distances(data, synthetic_candidates)
-    candidate_distances = cdist(data, synthetic_candidates, 'euclidean')  # or your preferred metric
-    
-    # Calculate candidate energies
-    # eps = np.percentile(candidate_distances[candidate_distances > 0], 5)
+    # Calculate distances and energies
+    candidate_distances = pairwise_distances(data, synthetic_candidates)
     eps = 1e-6
-    candidate_energy = np.sum(1/(candidate_distances**energy_multiplier+eps ), axis=0)
-    
-    # Apply density-aware weighting
+    candidate_energy = np.sum(1/(candidate_distances**energy_multiplier + eps), axis=0)
     log_energy = np.log(candidate_energy + 1e-10)
     candidate_weights = np.exp(log_energy - np.max(log_energy))
-
     total_energy = candidate_energy * candidate_weights
-
-
-    # --- Plot 2D energy landscape ---
-    if synthetic_candidates.shape[1] == 2:  # Only for 2D data
-        x = synthetic_candidates[:, 0]
-        y = synthetic_candidates[:, 1]
-        plt.figure(figsize=(8, 6))
-        scatter = plt.scatter(x, y, c=total_energy, cmap='viridis', s=40)
-        plt.colorbar(scatter, label='Candidate Energy')
-        # plt.scatter(data[:, 0], data[:, 1], c='red', s=10, alpha=0.3, label='Original Data')
-        plt.title("Energy Map of Synthetic Candidates")
-        plt.xlabel("Feature 1")
-        plt.ylabel("Feature 2")
-        plt.legend()
-        plt.grid(True)
-        plt.tight_layout()
-        plt.show()
-    else:
-        print("Plotting skipped: data is not 2D")
     
-    # Initialize centroid indices
-    centroid_indices = []
-
-    for _ in range(nc):
-        scores = total_energy
-        scores[centroid_indices] = -np.inf  # Avoid reselecting the same centroid
-        next_idx = np.argmax(scores)
-        centroid_indices.append(int(next_idx))
-
+    # Region analysis
+    min_e, max_e = np.min(total_energy), np.max(total_energy)
+    thresholds = np.linspace(min_e, max_e, n_threshold_steps)
     
-    # Convert to numpy array with explicit integer dtype
+    # Store region evolution
+    region_evolution = defaultdict(dict)
+    prev_labels = np.ones(len(synthetic_candidates), dtype=int)  # All points start in region 1
+    
+    for i, threshold in enumerate(thresholds):
+        # Create binary map (1 if energy >= threshold)
+        binary_map = (total_energy >= threshold).astype(int)
+        
+        # Reshape for labeling (assuming grid structure)
+        grid_size = int(np.sqrt(len(synthetic_candidates)))
+        if grid_size**2 == len(synthetic_candidates):
+            binary_grid = binary_map.reshape((grid_size, grid_size))
+            labeled, n_regions = ndi_label(binary_grid)
+            current_labels = labeled.ravel()
+        else:
+            # Fallback for non-grid data
+            from sklearn.neighbors import radius_neighbors_graph
+            connectivity = radius_neighbors_graph(synthetic_candidates, 
+                                              radius=np.percentile(pairwise_distances(synthetic_candidates), 5))
+            from scipy.sparse.csgraph import connected_components
+            _, current_labels = connected_components(connectivity * binary_map[:, None], directed=False)
+            n_regions = np.max(current_labels)
+        
+        # Track region splits
+        split_info = {}
+        for new_label in np.unique(current_labels):
+            if new_label == 0:  # Skip background
+                continue
+            parent_labels = prev_labels[current_labels == new_label]
+            parent_labels = parent_labels[parent_labels != 0]  # Remove background
+            if len(parent_labels) > 0:
+                dominant_parent = np.bincount(parent_labels).argmax()
+                split_info[new_label] = dominant_parent
+        
+        region_evolution[i] = {
+            'threshold': threshold,
+            'labels': current_labels,
+            'n_regions': n_regions,
+            'splits': split_info
+        }
+        
+        prev_labels = current_labels
+        if n_regions >= 10:
+            break
+    
+    # Build the region tree
+    root = build_region_tree(region_evolution, synthetic_candidates, total_energy)
+    
+    # Normalize potentials across the tree
+    all_potentials = np.array([node.potential for node in root.descendants])
+    if len(all_potentials) > 0:
+        max_potential = np.max(all_potentials)
+        for node in root.descendants:
+            node.normalized_potential = node.potential / max_potential
+    
+    # Print tree structure
+    print("Region Evolution Tree:")
+    plot_region_tree(root)
+    
+    # Select centroids - take top nodes by potential
+    all_nodes = list(root.descendants)
+    all_nodes.sort(key=lambda x: x.potential, reverse=True)
+    centroid_nodes = all_nodes[:nc]
+    
+    # Get centroid positions (use weighted position if available, otherwise first point)
+    centroids = []
+    for node in centroid_nodes:
+        if node.weighted_position is not None:
+            centroids.append(node.weighted_position)
+        elif len(node.positions) > 0:
+            centroids.append(node.positions[0][0])  # First position
+    
+    centroid_indices = [np.argmin(pairwise_distances([c], synthetic_candidates)[0]) for c in centroids]
     centroid_indices_arr = np.array(centroid_indices, dtype=np.int32)
     
-    # Return the actual synthetic centroid points and their indices
     return synthetic_candidates[centroid_indices_arr], centroid_indices_arr
+
+
 
 def SNN_optimized(nc: int, data: np.ndarray,candidates_multiplier, energy_multiplier) -> Tuple[np.ndarray, np.ndarray]:
     """Optimized SNN clustering using synthetic grid candidates"""
