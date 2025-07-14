@@ -148,36 +148,50 @@ def build_region_tree(region_evolution, synthetic_candidates, total_energy):
     
     # Track current level nodes
     current_nodes = {1: root}  # Using region labels as keys
+    prev_labels = np.ones(len(synthetic_candidates), dtype=int)  # Initialize with all points in region 1
     
     for step, info in region_evolution.items():
         next_nodes = {}
-        splits = info['splits']
         current_labels = info['labels']
         
-        # Create mapping from new labels to their parent labels
-        parent_child_map = defaultdict(list)
-        for child, parent in splits.items():
-            parent_child_map[parent].append(child)
+        # Create mapping from parent to all its children
+        unique_parent_children = defaultdict(set)
+        for child_label in np.unique(current_labels):
+            if child_label == 0:  # Skip background
+                continue
+            # Find which parent regions these points came from
+            parent_labels = prev_labels[current_labels == child_label]
+            parent_labels = parent_labels[parent_labels != 0]  # Remove background
+            if len(parent_labels) > 0:
+                for parent in np.unique(parent_labels):
+                    unique_parent_children[parent].add(child_label)
         
         # Process each current node
         for parent_label, parent_node in current_nodes.items():
-            if parent_label not in parent_child_map:
-                # Region didn't split - create single child with same label
-                child_mask = (current_labels == parent_label)
+            children_labels = unique_parent_children.get(parent_label, set())
+            
+            if not children_labels:
+                # Region disappeared - no children to create
+                continue
+                
+            if len(children_labels) == 1:
+                # Region continues (might have lost some points)
+                child_label = children_labels.pop()
+                child_mask = (current_labels == child_label)
                 if np.sum(child_mask) == 0:
                     continue
                     
                 child_potential = np.sum(total_energy[child_mask])
                 child_positions = list(zip(synthetic_candidates[child_mask], 
                                          total_energy[child_mask]))
-                child_node = RegionNode(f"R{parent_label}-S{step}", 
+                child_node = RegionNode(f"R{child_label}-S{step}", 
                                       child_potential, 
                                       child_positions,
                                       parent=parent_node)
-                next_nodes[parent_label] = child_node
+                next_nodes[child_label] = child_node
             else:
                 # Region split into multiple children
-                for child_label in parent_child_map[parent_label]:
+                for child_label in children_labels:
                     child_mask = (current_labels == child_label)
                     if np.sum(child_mask) == 0:
                         continue
@@ -192,6 +206,7 @@ def build_region_tree(region_evolution, synthetic_candidates, total_energy):
                     next_nodes[child_label] = child_node
         
         current_nodes = next_nodes
+        prev_labels = current_labels  # Update for next iteration
     
     return root
 
@@ -201,7 +216,7 @@ def plot_region_tree(root):
         pos_str = f"{node.weighted_position.round(2)}" if node.weighted_position is not None else "None"
         print(f"{pre}{node.name} (P: {node.potential:.2f}, Pos: {pos_str})")
 
-def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplier, n_threshold_steps=20):
+def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplier, n_threshold_steps=100):
     """Select centroids with tree-based region evolution tracking"""
     n = data.shape[0]
     
@@ -209,12 +224,15 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
     synthetic_candidates = generate_synthetic_candidates(data, n_candidates_multiplier=candidates_multiplier)
     
     # Calculate distances and energies
-    candidate_distances = pairwise_distances(data, synthetic_candidates)
-    eps = 1e-6
+    candidate_distances = cdist(data, synthetic_candidates, 'euclidean')  # or your preferred metric
+    
+    
+    
+    eps = 0
     candidate_energy = np.sum(1/(candidate_distances**energy_multiplier + eps), axis=0)
     log_energy = np.log(candidate_energy + 1e-10)
     candidate_weights = np.exp(log_energy - np.max(log_energy))
-    total_energy = candidate_energy * candidate_weights
+    total_energy = candidate_energy 
     
     # Region analysis
     min_e, max_e = np.min(total_energy), np.max(total_energy)
@@ -230,18 +248,25 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
         
         # Reshape for labeling (assuming grid structure)
         grid_size = int(np.sqrt(len(synthetic_candidates)))
-        if grid_size**2 == len(synthetic_candidates):
-            binary_grid = binary_map.reshape((grid_size, grid_size))
-            labeled, n_regions = ndi_label(binary_grid)
-            current_labels = labeled.ravel()
-        else:
-            # Fallback for non-grid data
-            from sklearn.neighbors import radius_neighbors_graph
-            connectivity = radius_neighbors_graph(synthetic_candidates, 
-                                              radius=np.percentile(pairwise_distances(synthetic_candidates), 5))
-            from scipy.sparse.csgraph import connected_components
-            _, current_labels = connected_components(connectivity * binary_map[:, None], directed=False)
-            n_regions = np.max(current_labels)
+   
+        binary_grid = binary_map.reshape((grid_size, grid_size))
+        labeled, n_regions = ndi_label(binary_grid)
+        current_labels = labeled.ravel()
+        
+        # Filter small regions (less than 5 nodes)
+        unique_labels, counts = np.unique(current_labels, return_counts=True)
+        small_regions = unique_labels[counts < 5]
+        
+        # Create mask of regions to keep
+        keep_mask = ~np.isin(current_labels, small_regions)
+        
+        # Second labeling pass on filtered regions
+        filtered_binary = binary_map.copy()
+        filtered_binary[~keep_mask] = 0
+        filtered_grid = filtered_binary.reshape((grid_size, grid_size))
+        relabeled, n_regions = ndi_label(filtered_grid)
+        current_labels = relabeled.ravel()
+      
         
         # Track region splits
         split_info = {}
@@ -262,8 +287,39 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
         }
         
         prev_labels = current_labels
-        if n_regions >= 10:
-            break
+        # if n_regions >= 10:
+        #     break
+    
+    # Visualization for 2D
+    import matplotlib.pyplot as plt
+
+    if synthetic_candidates.shape[1] == 2:
+        num_plots = len(region_evolution)
+        rows = (num_plots + 3) // 5  # at most 4 plots per row
+        fig, axes = plt.subplots(rows, 4, figsize=(18, 4 * rows))
+
+        # Flatten axes array and handle the case if it's 1D
+        axes = axes.ravel() if num_plots > 1 else [axes]
+
+        for i, (ax, (step, info)) in enumerate(zip(axes, region_evolution.items())):
+            sc = ax.scatter(
+                synthetic_candidates[:, 0], synthetic_candidates[:, 1],
+                c=info['labels'], cmap='tab20', s=8, alpha=0.8
+            )
+            ax.set_title(f"Thresh: {info['threshold']:.2f}\nRegions: {info['n_regions']}",
+                        fontsize=10)
+            ax.set_xticks([])
+            ax.set_yticks([])
+
+        # Hide unused subplots if any
+        for j in range(i + 1, len(axes)):
+            axes[j].axis('off')
+
+        plt.subplots_adjust(hspace=0.4, wspace=0.3)
+        plt.tight_layout()
+        plt.show()
+    
+    print('region_evolution',region_evolution)
     
     # Build the region tree
     root = build_region_tree(region_evolution, synthetic_candidates, total_energy)
@@ -275,9 +331,9 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
         for node in root.descendants:
             node.normalized_potential = node.potential / max_potential
     
-    # Print tree structure
-    print("Region Evolution Tree:")
-    plot_region_tree(root)
+    # # Print tree structure
+    # print("Region Evolution Tree:")
+    # plot_region_tree(root)
     
     # Select centroids - take top nodes by potential
     all_nodes = list(root.descendants)
