@@ -400,3 +400,153 @@ NMI (max) across seeds: [0.8575]
 Mean ± Std - ARI: 0.7630 ± 0.0000
 Mean ± Std - NMI: 0.8575 ± 0.0000
 
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.6836]
+NMI (max) across seeds: [0.8436]
+Mean ± Std - ARI: 0.6836 ± 0.0000
+Mean ± Std - NMI: 0.8436 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.6394]
+NMI (max) across seeds: [0.8082]
+Mean ± Std - ARI: 0.6394 ± 0.0000
+Mean ± Std - NMI: 0.8082 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.6781]
+NMI (max) across seeds: [0.8019]
+Mean ± Std - ARI: 0.6781 ± 0.0000
+Mean ± Std - NMI: 0.8019 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.7165]
+NMI (max) across seeds: [0.8107]
+Mean ± Std - ARI: 0.7165 ± 0.0000
+Mean ± Std - NMI: 0.8107 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: []
+NMI (max) across seeds: []
+Mean ± Std - ARI: nan ± nan
+Mean ± Std - NMI: nan ± nan
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.7017]
+NMI (max) across seeds: [0.8221]
+Mean ± Std - ARI: 0.7017 ± 0.0000
+Mean ± Std - NMI: 0.8221 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.6167]
+NMI (max) across seeds: [0.801]
+Mean ± Std - ARI: 0.6167 ± 0.0000
+Mean ± Std - NMI: 0.8010 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.6321]
+NMI (max) across seeds: [0.8164]
+Mean ± Std - ARI: 0.6321 ± 0.0000
+Mean ± Std - NMI: 0.8164 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.7353]
+NMI (max) across seeds: [0.8347]
+Mean ± Std - ARI: 0.7353 ± 0.0000
+Mean ± Std - NMI: 0.8347 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.6132]
+NMI (max) across seeds: [0.8006]
+Mean ± Std - ARI: 0.6132 ± 0.0000
+Mean ± Std - NMI: 0.8006 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.4102]
+NMI (max) across seeds: [0.6377]
+Mean ± Std - ARI: 0.4102 ± 0.0000
+Mean ± Std - NMI: 0.6377 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.6751]
+NMI (max) across seeds: [0.8079]
+Mean ± Std - ARI: 0.6751 ± 0.0000
+Mean ± Std - NMI: 0.8079 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.5621]
+NMI (max) across seeds: [0.7685]
+Mean ± Std - ARI: 0.5621 ± 0.0000
+Mean ± Std - NMI: 0.7685 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.5956]
+NMI (max) across seeds: [0.7763]
+Mean ± Std - ARI: 0.5956 ± 0.0000
+Mean ± Std - NMI: 0.7763 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.6398]
+NMI (max) across seeds: [0.8042]
+Mean ± Std - ARI: 0.6398 ± 0.0000
+Mean ± Std - NMI: 0.8042 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: []
+NMI (max) across seeds: []
+Mean ± Std - ARI: nan ± nan
+Mean ± Std - NMI: nan ± nan
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: []
+NMI (max) across seeds: []
+Mean ± Std - ARI: nan ± nan
+Mean ± Std - NMI: nan ± nan
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: []
+NMI (max) across seeds: []
+Mean ± Std - ARI: nan ± nan
+Mean ± Std - NMI: nan ± nan
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: []
+NMI (max) across seeds: []
+Mean ± Std - ARI: nan ± nan
+Mean ± Std - NMI: nan ± nan
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.6465]
+NMI (max) across seeds: [0.7842]
+Mean ± Std - ARI: 0.6465 ± 0.0000
+Mean ± Std - NMI: 0.7842 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.7493]
+NMI (max) across seeds: [0.8452]
+Mean ± Std - ARI: 0.7493 ± 0.0000
+Mean ± Std - NMI: 0.8452 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.6279]
+NMI (max) across seeds: [0.8156]
+Mean ± Std - ARI: 0.6279 ± 0.0000
+Mean ± Std - NMI: 0.8156 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.8571]
+NMI (max) across seeds: [0.8765]
+Mean ± Std - ARI: 0.8571 ± 0.0000
+Mean ± Std - NMI: 0.8765 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.8029]
+NMI (max) across seeds: [0.8448]
+Mean ± Std - ARI: 0.8029 ± 0.0000
+Mean ± Std - NMI: 0.8448 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.8631]
+NMI (max) across seeds: [0.8794]
+Mean ± Std - ARI: 0.8631 ± 0.0000
+Mean ± Std - NMI: 0.8794 ± 0.0000
+

@@ -49,12 +49,12 @@
     "mnist2d": {
       "k1": 200,
       "candidates_multiplier": 2,
-      "energy_multiplier": 2
+      "energy_multiplier": 10
     },
     "postures": {
       "k1": 100,
       "candidates_multiplier": 2,
-      "energy_multiplier": 2
+      "energy_multiplier": 10
     },
     "celltypes": {
       "k1": 400,

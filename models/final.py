@@ -216,7 +216,7 @@ def plot_region_tree(root):
         pos_str = f"{node.weighted_position.round(2)}" if node.weighted_position is not None else "None"
         print(f"{pre}{node.name} (P: {node.potential:.2f}, Pos: {pos_str})")
 
-def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplier, n_threshold_steps=200):
+def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplier, n_threshold_steps=20):
     """Select centroids with tree-based region evolution tracking"""
     n = data.shape[0]
     
@@ -228,7 +228,7 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
     
     
     
-    eps = 0
+    eps = 1e-5
     candidate_energy = np.sum(1/(candidate_distances**energy_multiplier + eps), axis=0)
     log_energy = np.log(candidate_energy + 1e-10)
     candidate_weights = np.exp(log_energy - np.max(log_energy))
@@ -321,6 +321,59 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
     
     print('region_evolution',region_evolution)
     
+    # # Build the region tree
+    # root = build_region_tree(region_evolution, synthetic_candidates, total_energy)
+
+    # # Normalize potentials across the tree
+    # all_potentials = np.array([node.potential for node in root.descendants])
+    # if len(all_potentials) > 0:
+    #     max_potential = np.max(all_potentials)
+    #     for node in root.descendants:
+    #         node.normalized_potential = node.potential / max_potential
+
+    # # Breadth-first centroid selection
+    # selected_nodes = []
+    # current_level = list(root.children)  # Start with first level below root
+    # remaining = nc
+
+    # while remaining > 0 and current_level:
+    #     # Sort current level by potential (descending)
+    #     current_level.sort(key=lambda x: x.potential, reverse=True)
+        
+    #     # Take up to 'remaining' nodes from this level
+    #     take = min(remaining, len(current_level))
+    #     selected_nodes.extend(current_level[:take])
+    #     remaining -= take
+        
+    #     # If we still need more, prepare next level
+    #     if remaining > 0:
+    #         next_level = []
+    #         for node in current_level:
+    #             next_level.extend(node.children)
+    #         current_level = next_level
+
+    # # Now we have exactly nc nodes (or fewer if tree isn't deep enough)
+    # if len(selected_nodes) < nc:
+    #     # Fallback: take highest potential nodes from entire tree
+    #     all_nodes = list(root.descendants)
+    #     all_nodes.sort(key=lambda x: x.potential, reverse=True)
+    #     selected_nodes = all_nodes[:nc]
+
+    # # Get centroid positions
+    # centroids = []
+    # for node in selected_nodes:
+    #     if node.weighted_position is not None:
+    #         centroids.append(node.weighted_position)
+    #     elif len(node.positions) > 0:
+    #         centroids.append(node.positions[0][0])  # First position
+
+    # centroid_indices = [np.argmin(pairwise_distances([c], synthetic_candidates)[0]) for c in centroids]
+    # centroid_indices_arr = np.array(centroid_indices, dtype=np.int32)
+
+    # return synthetic_candidates[centroid_indices_arr], centroid_indices_arr
+
+
+    # Build the region tree
     # Build the region tree
     root = build_region_tree(region_evolution, synthetic_candidates, total_energy)
 
@@ -331,37 +384,59 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
         for node in root.descendants:
             node.normalized_potential = node.potential / max_potential
 
-    # Breadth-first centroid selection
-    selected_nodes = []
-    current_level = list(root.children)  # Start with first level below root
-    remaining = nc
-
-    while remaining > 0 and current_level:
-        # Sort current level by potential (descending)
-        current_level.sort(key=lambda x: x.potential, reverse=True)
+    def select_centroid_nodes(root, nc):
+        selected = []
         
-        # Take up to 'remaining' nodes from this level
-        take = min(remaining, len(current_level))
-        selected_nodes.extend(current_level[:take])
-        remaining -= take
+        # First pass: select one highest-potential leaf from each major branch
+        for child in root.children:
+            # Find all leaves in this branch
+            leaves = [node for node in child.descendants if not node.children]
+            
+            if leaves:
+                # Select highest potential leaf
+                best_leaf = max(leaves, key=lambda x: x.potential)
+                selected.append(best_leaf)
         
-        # If we still need more, prepare next level
-        if remaining > 0:
-            next_level = []
-            for node in current_level:
-                next_level.extend(node.children)
-            current_level = next_level
+        # If we have enough, return top nc
+        if len(selected) >= nc:
+            selected.sort(key=lambda x: (-x.depth, x.potential))  # Higher depth first, then potential
+            return selected[:nc]
+        
+        # Second pass: if not enough, select additional leaves from branches
+        # that already contributed, going deeper in hierarchy
+        remaining = nc - len(selected)
+        all_leaves = [node for node in root.descendants if not node.children]
+        
+        # Sort leaves by: 
+        # 1. Depth (higher/closer to root first)
+        # 2. Potential (higher first)
+        # 3. Branch size (larger branches first)
+        all_leaves.sort(key=lambda x: (-x.depth, -x.potential, -len(x.positions)))
+        
+        # Take remaining needed leaves, avoiding duplicates from same branch
+        branch_ids = set()
+        for leaf in selected:
+            branch_ids.add(leaf.parent.path[-1].name)  # Track branches we already took from
+        
+        for leaf in all_leaves:
+            if remaining <= 0:
+                break
+            leaf_branch = leaf.parent.path[-1].name
+            if leaf_branch not in branch_ids:
+                selected.append(leaf)
+                branch_ids.add(leaf_branch)
+                remaining -= 1
+        
+        # Final sort by hierarchy then potential
+        selected.sort(key=lambda x: (-x.depth, -x.potential))
+        return selected[:nc]
 
-    # Now we have exactly nc nodes (or fewer if tree isn't deep enough)
-    if len(selected_nodes) < nc:
-        # Fallback: take highest potential nodes from entire tree
-        all_nodes = list(root.descendants)
-        all_nodes.sort(key=lambda x: x.potential, reverse=True)
-        selected_nodes = all_nodes[:nc]
+    # Select nodes using our hierarchical strategy
+    centroid_nodes = select_centroid_nodes(root, nc)
 
     # Get centroid positions
     centroids = []
-    for node in selected_nodes:
+    for node in centroid_nodes:
         if node.weighted_position is not None:
             centroids.append(node.weighted_position)
         elif len(node.positions) > 0:
