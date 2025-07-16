@@ -129,6 +129,17 @@ class RegionNode(Node):
         self.positions = positions
         self.weighted_position = self.calculate_weighted_position()
         self.normalized_potential = 0
+        self._is_leaf = False  # Initialize leaf status
+        
+    @property
+    def is_leaf(self):
+        """Returns True if this node has no children"""
+        return not self.children or self._is_leaf
+        
+    @is_leaf.setter
+    def is_leaf(self, value):
+        """Sets manual leaf status (overrides automatic child-based detection)"""
+        self._is_leaf = bool(value)
         
     def calculate_weighted_position(self):
         if len(self.positions) == 0:
@@ -139,74 +150,67 @@ class RegionNode(Node):
             weights = weights / np.sum(weights)  # normalize
         return np.sum(positions * weights[:, np.newaxis], axis=0)
 
+
 def build_region_tree(region_evolution, synthetic_candidates, total_energy):
-    """Build a tree structure representing region evolution"""
+    """Build a tree structure where only splits create new nodes (continuing regions preserve original properties)"""
     # Create root node (all points as one region)
     root_potential = np.sum(total_energy)
     root_positions = list(zip(synthetic_candidates, total_energy))
     root = RegionNode("Root", root_potential, root_positions)
     
     # Track current level nodes
-    current_nodes = {1: root}  # Using region labels as keys
-    prev_labels = np.ones(len(synthetic_candidates), dtype=int)  # Initialize with all points in region 1
+    current_nodes = {1: root}
+    prev_labels = np.ones(len(synthetic_candidates), dtype=int)
     
     for step, info in region_evolution.items():
         next_nodes = {}
         current_labels = info['labels']
         
-        # Create mapping from parent to all its children
-        unique_parent_children = defaultdict(set)
+        # Create parent→children mapping
+        parent_children = defaultdict(set)
         for child_label in np.unique(current_labels):
-            if child_label == 0:  # Skip background
+            if child_label == 0:
                 continue
-            # Find which parent regions these points came from
-            parent_labels = prev_labels[current_labels == child_label]
-            parent_labels = parent_labels[parent_labels != 0]  # Remove background
-            if len(parent_labels) > 0:
-                for parent in np.unique(parent_labels):
-                    unique_parent_children[parent].add(child_label)
+            parents = prev_labels[current_labels == child_label]
+            parents = parents[parents != 0]
+            for parent in np.unique(parents):
+                parent_children[parent].add(child_label)
         
         # Process each current node
         for parent_label, parent_node in current_nodes.items():
-            children_labels = unique_parent_children.get(parent_label, set())
+            children_labels = parent_children.get(parent_label, set())
             
             if not children_labels:
-                # Region disappeared - no children to create
+                # Region disappeared
                 continue
                 
             if len(children_labels) == 1:
-                # Region continues (might have lost some points)
+                # Region continues - reuse the existing node without modification
                 child_label = children_labels.pop()
-                child_mask = (current_labels == child_label)
-                if np.sum(child_mask) == 0:
-                    continue
-                    
-                child_potential = np.sum(total_energy[child_mask])
-                child_positions = list(zip(synthetic_candidates[child_mask], 
-                                         total_energy[child_mask]))
-                child_node = RegionNode(f"R{child_label}-S{step}", 
-                                      child_potential, 
-                                      child_positions,
-                                      parent=parent_node)
-                next_nodes[child_label] = child_node
+                next_nodes[child_label] = parent_node  # Keep original node reference
             else:
-                # Region split into multiple children
+                # Region splits - create new nodes
                 for child_label in children_labels:
                     child_mask = (current_labels == child_label)
                     if np.sum(child_mask) == 0:
                         continue
                         
                     child_potential = np.sum(total_energy[child_mask])
-                    child_positions = list(zip(synthetic_candidates[child_mask], 
+                    child_positions = list(zip(synthetic_candidates[child_mask],
                                            total_energy[child_mask]))
-                    child_node = RegionNode(f"R{child_label}-S{step}", 
-                                        child_potential, 
-                                        child_positions,
-                                        parent=parent_node)
+                    child_node = RegionNode(f"R{child_label}-S{step}",
+                                          child_potential,
+                                          child_positions,
+                                          parent=parent_node)
                     next_nodes[child_label] = child_node
         
         current_nodes = next_nodes
-        prev_labels = current_labels  # Update for next iteration
+        prev_labels = current_labels
+    
+     # Mark all terminal nodes as leaves
+    for node in current_nodes.values():
+        if not node.children:  # Now using the proper property
+            node.is_leaf = True  # This will work with the setter
     
     return root
 
@@ -226,21 +230,42 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
     # Calculate distances and energies
     candidate_distances = cdist(data, synthetic_candidates, 'euclidean')  # or your preferred metric
     
-    
-    
-    eps = 1e-5
-    candidate_energy = np.sum(1/(candidate_distances**energy_multiplier + eps), axis=0)
+    eps = np.percentile(candidate_distances[candidate_distances > 0], 5)
+    # candidate_energy = np.sum(1/(candidate_distances**energy_multiplier + eps), axis=0)
+    candidate_energy = np.sum(np.exp(-(candidate_distances**energy_multiplier)/eps), axis=0)
     log_energy = np.log(candidate_energy + 1e-10)
     candidate_weights = np.exp(log_energy - np.max(log_energy))
     total_energy = candidate_energy 
     
-    # Region analysis
-    min_e, max_e = np.min(total_energy), np.max(total_energy)
-    thresholds = np.linspace(min_e, max_e, n_threshold_steps)
+    # # Region analysis
+    # min_e, max_e = np.min(total_energy), np.max(total_energy)
+    # thresholds = np.linspace(min_e, max_e, n_threshold_steps)
+
+
+    def get_energy_midpoints(total_energy):
+        # Sort the energy values from smallest to largest
+        sorted_energy = np.sort(total_energy)
+        
+        # Calculate midpoints between consecutive values
+        midpoints = (sorted_energy[1:] + sorted_energy[:-1]) / 2
+        
+        return midpoints
+
+    thresholds = get_energy_midpoints(total_energy)
+
+    # # Subsample: Take 1, skip 9, repeat
+    # keep_mask = np.zeros(len(thresholds), dtype=bool)
+    # keep_mask[::1] = True  # Set every 10th element to True (keep 1, skip 9)
+
+    # thresholds = thresholds[keep_mask]
+
+    print('len',len(thresholds))
+
     
     # Store region evolution
     region_evolution = defaultdict(dict)
     prev_labels = np.ones(len(synthetic_candidates), dtype=int)  # All points start in region 1
+    candidate_storage = {}
     
     for i, threshold in enumerate(thresholds):
         # Create binary map (1 if energy >= threshold)
@@ -248,14 +273,16 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
         
         # Reshape for labeling (assuming grid structure)
         grid_size = int(np.sqrt(len(synthetic_candidates)))
-   
+        
         binary_grid = binary_map.reshape((grid_size, grid_size))
+
+
         labeled, n_regions = ndi_label(binary_grid)
         current_labels = labeled.ravel()
         
         # Filter small regions (less than 5 nodes)
         unique_labels, counts = np.unique(current_labels, return_counts=True)
-        small_regions = unique_labels[counts < 5]
+        small_regions = unique_labels[counts <= 10]
         
         # Create mask of regions to keep
         keep_mask = ~np.isin(current_labels, small_regions)
@@ -266,8 +293,7 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
         filtered_grid = filtered_binary.reshape((grid_size, grid_size))
         relabeled, n_regions = ndi_label(filtered_grid)
         current_labels = relabeled.ravel()
-      
-        
+     
         # Track region splits
         split_info = {}
         for new_label in np.unique(current_labels):
@@ -285,23 +311,52 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
             'n_regions': n_regions,
             'splits': split_info
         }
+
+        # mask = total_energy >= threshold
+        # active_candidates = synthetic_candidates[mask]
+        # active_energies = total_energy[mask]
         
+        # # Only store at the specified iteration (last 20th)
+        # if len(active_candidates) > 0 and i == len(thresholds) - 20:
+        #     # Sort by energy (descending) and get indices
+        #     print('active_energies',active_energies)
+        #     ranked_indices = np.argsort(-active_energies)
+            
+        #     # Store sorted results
+        #     candidate_storage = {
+        #         'threshold': threshold,
+        #         'candidates': active_candidates[ranked_indices],
+        #         'energies': active_energies[ranked_indices],
+        #         'n_active': len(active_candidates),
+        #         'ranked_indices': ranked_indices  # Optional: store the sorting indices
+        #     }
+
+
+        # Store grid information (positions and potentials) for active regions
+       
         prev_labels = current_labels
-        if n_regions >= 10:
-            break
+
+
+
+        # if n_regions >=10:
+        #     break
     
     # Visualization for 2D
     import matplotlib.pyplot as plt
+    from matplotlib.animation import FuncAnimation
 
+    import matplotlib.pyplot as plt
+
+    # Visualization for 2D - Last 10 thresholds only
     if synthetic_candidates.shape[1] == 2:
-        num_plots = len(region_evolution)
-        rows = (num_plots + 3) // 5  # at most 4 plots per row
-        fig, axes = plt.subplots(rows, 4, figsize=(18, 4 * rows))
-
-        # Flatten axes array and handle the case if it's 1D
-        axes = axes.ravel() if num_plots > 1 else [axes]
-
-        for i, (ax, (step, info)) in enumerate(zip(axes, region_evolution.items())):
+        # Get the last 10 steps from region_evolution
+        last_steps = sorted(region_evolution.items())[-10:]  # Takes last 10 thresholds
+        
+        # Create plot grid (2 rows x 5 columns)
+        fig, axes = plt.subplots(2, 5, figsize=(20, 8))
+        axes = axes.ravel()  # Flatten for easy iteration
+        
+        for ax, (step, info) in zip(axes, last_steps):
             sc = ax.scatter(
                 synthetic_candidates[:, 0], synthetic_candidates[:, 1],
                 c=info['labels'], cmap='tab20', s=8, alpha=0.8
@@ -310,128 +365,85 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
                         fontsize=10)
             ax.set_xticks([])
             ax.set_yticks([])
-
-        # Hide unused subplots if any
-        for j in range(i + 1, len(axes)):
-            axes[j].axis('off')
-
-        plt.subplots_adjust(hspace=0.4, wspace=0.3)
+        
         plt.tight_layout()
         plt.show()
-    
-    print('region_evolution',region_evolution)
-    
-    # # Build the region tree
-    # root = build_region_tree(region_evolution, synthetic_candidates, total_energy)
 
-    # # Normalize potentials across the tree
-    # all_potentials = np.array([node.potential for node in root.descendants])
-    # if len(all_potentials) > 0:
-    #     max_potential = np.max(all_potentials)
-    #     for node in root.descendants:
-    #         node.normalized_potential = node.potential / max_potential
-
-    # # Breadth-first centroid selection
-    # selected_nodes = []
-    # current_level = list(root.children)  # Start with first level below root
-    # remaining = nc
-
-    # while remaining > 0 and current_level:
-    #     # Sort current level by potential (descending)
-    #     current_level.sort(key=lambda x: x.potential, reverse=True)
         
-    #     # Take up to 'remaining' nodes from this level
-    #     take = min(remaining, len(current_level))
-    #     selected_nodes.extend(current_level[:take])
-    #     remaining -= take
-        
-    #     # If we still need more, prepare next level
-    #     if remaining > 0:
-    #         next_level = []
-    #         for node in current_level:
-    #             next_level.extend(node.children)
-    #         current_level = next_level
-
-    # # Now we have exactly nc nodes (or fewer if tree isn't deep enough)
-    # if len(selected_nodes) < nc:
-    #     # Fallback: take highest potential nodes from entire tree
-    #     all_nodes = list(root.descendants)
-    #     all_nodes.sort(key=lambda x: x.potential, reverse=True)
-    #     selected_nodes = all_nodes[:nc]
-
-    # # Get centroid positions
-    # centroids = []
-    # for node in selected_nodes:
-    #     if node.weighted_position is not None:
-    #         centroids.append(node.weighted_position)
-    #     elif len(node.positions) > 0:
-    #         centroids.append(node.positions[0][0])  # First position
-
-    # centroid_indices = [np.argmin(pairwise_distances([c], synthetic_candidates)[0]) for c in centroids]
-    # centroid_indices_arr = np.array(centroid_indices, dtype=np.int32)
-
-    # return synthetic_candidates[centroid_indices_arr], centroid_indices_arr
-
 
     # Build the region tree
     # Build the region tree
+    import sys
+    sys.setrecursionlimit(10000)  # Increase limit (default is usually 1000)
     root = build_region_tree(region_evolution, synthetic_candidates, total_energy)
+    plot_region_tree(root)
 
-    # Normalize potentials across the tree
-    all_potentials = np.array([node.potential for node in root.descendants])
-    if len(all_potentials) > 0:
-        max_potential = np.max(all_potentials)
-        for node in root.descendants:
-            node.normalized_potential = node.potential / max_potential
+    def count_leaves(node):
+        """Count all leaf nodes in the tree"""
+        if not node.children:  # This is a leaf node
+            return 1
+        return sum(count_leaves(child) for child in node.children)
+
+    # Usage:
+    num_leaves = count_leaves(root)
+    print(f"Total leaf nodes in tree: {num_leaves}")
 
     def select_centroid_nodes(root, nc):
         selected = []
-        
-        # First pass: select one highest-potential leaf from each major branch
-        for child in root.children:
-            # Find all leaves in this branch
-            leaves = [node for node in child.descendants if not node.children]
-            
-            if leaves:
-                # Select highest potential leaf
-                best_leaf = max(leaves, key=lambda x: x.potential)
-                selected.append(best_leaf)
-        
-        # If we have enough, return top nc
-        if len(selected) >= nc:
-            selected.sort(key=lambda x: (-x.depth, x.potential))  # Higher depth first, then potential
-            return selected[:nc]
-        
-        # Second pass: if not enough, select additional leaves from branches
-        # that already contributed, going deeper in hierarchy
-        remaining = nc - len(selected)
         all_leaves = [node for node in root.descendants if not node.children]
         
-        # Sort leaves by: 
-        # 1. Depth (higher/closer to root first)
-        # 2. Potential (higher first)
-        # 3. Branch size (larger branches first)
-        all_leaves.sort(key=lambda x: (-x.depth, -x.potential, -len(x.positions)))
+        # Sort all leaves by potential first
+        all_leaves.sort(key=lambda x: -x.potential)
+    
         
-        # Take remaining needed leaves, avoiding duplicates from same branch
-        branch_ids = set()
-        for leaf in selected:
-            branch_ids.add(leaf.parent.path[-1].name)  # Track branches we already took from
+        # Track all ancestor paths to ensure topological independence
+        used_branches = set()
         
         for leaf in all_leaves:
-            if remaining <= 0:
+            if len(selected) >= nc:
                 break
-            leaf_branch = leaf.parent.path[-1].name
-            if leaf_branch not in branch_ids:
+                
+            # Get the full path from leaf to root
+            path = []
+            current = leaf
+            while current != root:
+                path.append(current.name)
+                current = current.parent
+            
+            # Check if this path conflicts with any selected leaf
+            independent = True
+            for node_name in path:
+                if node_name in used_branches:
+                    independent = False
+                    break
+                    
+            if independent:
                 selected.append(leaf)
-                branch_ids.add(leaf_branch)
-                remaining -= 1
+                # Add all nodes in path to used branches
+                used_branches.update(path)
         
-        # Final sort by hierarchy then potential
-        selected.sort(key=lambda x: (-x.depth, -x.potential))
-        return selected[:nc]
+        # If we still need more, take highest potential regardless
+        if len(selected) < nc:
+            remaining = nc - len(selected)
+            for leaf in all_leaves:
+                if leaf not in selected:
+                    selected.append(leaf)
+                    remaining -= 1
+                    if remaining <= 0:
+                        break
+        
+        print('len',len(selected))
 
-    # Select nodes using our hierarchical strategy
+        
+        return selected[:nc]
+    
+    # Rank synthetic candidates by energy (descending order)
+
+    # Rank synthetic candidates by energy (descending order)
+    ranked_indices = np.argsort(-total_energy)  # Negative for descending sort
+    ranked_candidates = synthetic_candidates[ranked_indices]
+
+
     centroid_nodes = select_centroid_nodes(root, nc)
 
     # Get centroid positions
@@ -442,10 +454,28 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
         elif len(node.positions) > 0:
             centroids.append(node.positions[0][0])  # First position
 
-    centroid_indices = [np.argmin(pairwise_distances([c], synthetic_candidates)[0]) for c in centroids]
-    centroid_indices_arr = np.array(centroid_indices, dtype=np.int32)
 
-    return synthetic_candidates[centroid_indices_arr], centroid_indices_arr
+    if centroids is not None:
+        centroid_indices = [np.argmin(pairwise_distances([c], synthetic_candidates)[0]) for c in centroids]
+        centroid_indices_arr = np.array(centroid_indices, dtype=np.int32)
+        syn_centroids = synthetic_candidates[centroid_indices_arr]
+    else:
+        syn_centroids = np.array([])  # Initialize as empty numpy array
+
+    # Select top-N candidates to append (adjust `nc` as needed)
+    if len(syn_centroids) < nc:
+        remaining = nc - len(syn_centroids)
+        # Convert to list if needed, or use numpy concatenation
+        if remaining > 0:
+            if len(syn_centroids) == 0:
+                syn_centroids = ranked_candidates[:remaining]
+            else:
+                syn_centroids = np.concatenate([syn_centroids, ranked_candidates[:remaining]])
+
+
+    return syn_centroids,None
+
+
 
 
 def SNN_optimized(nc: int, data: np.ndarray,candidates_multiplier, energy_multiplier) -> Tuple[np.ndarray, np.ndarray]:

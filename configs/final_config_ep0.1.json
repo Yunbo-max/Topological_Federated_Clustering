@@ -3,7 +3,7 @@
   "datanames": ["mnist2d"],
   "seed":1,
   "n_runs": 1,
-  "epsilon": 1000,
+  "epsilon": 0.1,
   "save_path": "results/cfc_epsilon_1.txt",
   
   "abalone": {
@@ -48,12 +48,12 @@
     },
     "mnist2d": {
       "k1": 200,
-      "candidates_multiplier": 10,
+      "candidates_multiplier": 1,
       "energy_multiplier": 2
     },
     "postures": {
       "k1": 100,
-      "candidates_multiplier": 1,
+      "candidates_multiplier": 2,
       "energy_multiplier": 2
     },
     "celltypes": {

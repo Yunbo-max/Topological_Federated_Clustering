@@ -119,7 +119,7 @@ def penalized_energy_centroids(data, nc,candidates_multiplier,energy_multiplier)
     
     # Calculate candidate energies
     # eps = np.percentile(candidate_distances[candidate_distances > 0], 5)
-    eps = 1e-6
+    eps = np.percentile(candidate_distances[candidate_distances > 0], 1)
     candidate_energy = np.sum(1/(candidate_distances**energy_multiplier+eps ), axis=0)
     
     # Apply density-aware weighting
