@@ -118,15 +118,16 @@ def penalized_energy_centroids(data, nc,candidates_multiplier,energy_multiplier)
     candidate_distances = cdist(data, synthetic_candidates, 'euclidean')  # or your preferred metric
     
     # Calculate candidate energies
-    # eps = np.percentile(candidate_distances[candidate_distances > 0], 5)
     eps = np.percentile(candidate_distances[candidate_distances > 0], 1)
+    print('eps',eps)
+    # eps = 0.1
     candidate_energy = np.sum(1/(candidate_distances**energy_multiplier+eps ), axis=0)
     
     # Apply density-aware weighting
-    log_energy = np.log(candidate_energy + 1e-10)
+    log_energy = np.log(candidate_energy )
     candidate_weights = np.exp(log_energy - np.max(log_energy))
 
-    total_energy = candidate_energy * candidate_weights
+    total_energy = candidate_energy
 
 
     # --- Plot 2D energy landscape ---

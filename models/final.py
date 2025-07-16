@@ -230,11 +230,9 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
     # Calculate distances and energies
     candidate_distances = cdist(data, synthetic_candidates, 'euclidean')  # or your preferred metric
     
-    eps = np.percentile(candidate_distances[candidate_distances > 0], 5)
-    # candidate_energy = np.sum(1/(candidate_distances**energy_multiplier + eps), axis=0)
-    candidate_energy = np.sum(np.exp(-(candidate_distances**energy_multiplier)/eps), axis=0)
-    log_energy = np.log(candidate_energy + 1e-10)
-    candidate_weights = np.exp(log_energy - np.max(log_energy))
+    # eps = np.percentile(candidate_distances[candidate_distances > 0], 1)
+    eps = 5e-4
+    candidate_energy = np.sum(1/(candidate_distances**energy_multiplier + eps), axis=0)
     total_energy = candidate_energy 
     
     # # Region analysis
@@ -338,7 +336,7 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
 
 
 
-        # if n_regions >=10:
+        # if n_regions >=4:
         #     break
     
     # Visualization for 2D
@@ -350,10 +348,11 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
     # Visualization for 2D - Last 10 thresholds only
     if synthetic_candidates.shape[1] == 2:
         # Get the last 10 steps from region_evolution
-        last_steps = sorted(region_evolution.items())[-10:]  # Takes last 10 thresholds
+        print(len(region_evolution.items()))
+        last_steps = sorted(region_evolution.items())[-20:]  # Takes last 10 thresholds
         
         # Create plot grid (2 rows x 5 columns)
-        fig, axes = plt.subplots(2, 5, figsize=(20, 8))
+        fig, axes = plt.subplots(4, 5, figsize=(20, 8))
         axes = axes.ravel()  # Flatten for easy iteration
         
         for ax, (step, info) in zip(axes, last_steps):

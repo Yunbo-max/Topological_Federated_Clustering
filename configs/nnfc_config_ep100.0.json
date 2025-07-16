@@ -1,0 +1,19 @@
+{
+  "model": "nnfc",
+  "datanames": ["mnist2d"],
+  "seed": 1,
+  "n_runs": 1,
+  "epsilon": 100,
+  "save_path": "results/nnfc_epsilon_0.1.txt",
+
+  "abalone": { "k1": 50, "k2": 20 },
+  "balancescale": { "k1": 20, "k2": 20 },
+  "breast": { "k1": 9, "k2": 20 },
+  "gesture": { "k1": 50, "k2": 20 },
+  "heart": { "k1": 10, "k2": 20 },
+  "seeds": { "k1": 7, "k2": 20 },
+  "thyroid": { "k1": 7, "k2": 20 },
+  "mnist2d": { "k1": 50, "k2": 20 },
+  "postures": { "k1": 100, "k2": 20 },
+  "celltypes": { "k1": 400, "k2": 20 }
+}

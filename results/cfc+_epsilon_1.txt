@@ -4,3 +4,9 @@ NMI (max) across seeds: []
 Mean ± Std - ARI: nan ± nan
 Mean ± Std - NMI: nan ± nan
 
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.373]
+NMI (max) across seeds: [0.5746]
+Mean ± Std - ARI: 0.3730 ± 0.0000
+Mean ± Std - NMI: 0.5746 ± 0.0000
+

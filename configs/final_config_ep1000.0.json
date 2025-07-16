@@ -1,50 +1,50 @@
 {
-  "model": "cfc",
+  "model": "final",
   "datanames": ["mnist2d"],
   "seed":1,
   "n_runs": 1,
-  "epsilon": 0.1,
+  "epsilon": 1000,
   "save_path": "results/cfc_epsilon_1.txt",
   
   "abalone": {
       "k1": 50,
       "candidates_multiplier": 2,
-      "energy_multiplier": 13
+      "energy_multiplier": 2
     },
     "balancescale": {
       "k1": 20,
       "candidates_multiplier": 2,
-      "energy_multiplier": 13
+      "energy_multiplier": 2
     },
     "breast": {
       "k1": 9,
       "candidates_multiplier": 2,
-      "energy_multiplier": 13
+      "energy_multiplier": 2
     },
     "gesture": {
       "k1": 50,
       "candidates_multiplier": 2,
-      "energy_multiplier": 13
+      "energy_multiplier": 2
     },
     "heart": {
       "k1": 10,
       "candidates_multiplier": 2,
-      "energy_multiplier": 13
+      "energy_multiplier": 2
     },
     "seeds": {
       "k1": 7,
       "candidates_multiplier": 2,
-      "energy_multiplier": 13
+      "energy_multiplier": 2
     },
     "thyroid": {
       "k1": 7,
       "candidates_multiplier": 2,
-      "energy_multiplier": 13
+      "energy_multiplier": 2
     },
     "mnist": {
       "k1": 200,
-      "candidates_multiplier": 2,
-      "energy_multiplier": 13
+      "candidates_multiplier": 1,
+      "energy_multiplier": 2
     },
     "mnist2d": {
       "k1": 200,
@@ -53,12 +53,12 @@
     },
     "postures": {
       "k1": 100,
-      "candidates_multiplier": 2,
+      "candidates_multiplier": 1,
       "energy_multiplier": 2
     },
     "celltypes": {
       "k1": 400,
       "candidates_multiplier": 2,
-      "energy_multiplier": 13
+      "energy_multiplier": 2
     }
 }

@@ -1,0 +1,20 @@
+{
+  "model": "mufc",
+  "datanames": ["mnist2d"],
+  "seed": 1,
+  "n_runs": 1,
+  "epsilon": 10,
+  "save_path": "results/mufc_epsilon_1000.txt",
+
+  "abalone": { "k1": 50, "k2": 20 },
+  "balancescale": { "k1": 20, "k2": 20 },
+  "breast": { "k1": 9, "k2": 20 },
+  "gesture": { "k1": 50, "k2": 20 },
+  "heart": { "k1": 10, "k2": 20 },
+  "seeds": { "k1": 7, "k2": 20 },
+  "thyroid": { "k1": 7, "k2": 20 },
+  "mnist": { "k1": 2, "k2": 25 },
+  "mnist2d": { "k1": 2, "k2": 25 },
+  "postures": { "k1": 2, "k2": 20 },
+  "celltypes": { "k1": 2, "k2": 20 }
+}
