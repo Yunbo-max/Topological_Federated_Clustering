@@ -1,15 +1,18 @@
 {
   "model": "final",
-  "datanames": ["mnist2d"],
+  "datanames": [ "abalone"],
   "seed":1,
   "n_runs": 1,
   "epsilon": 10,
-  "save_path": "results/cfc_epsilon_1.txt",
+  "energy_multiplier": 2,
+  "save_path": "paper/final_epsilon_10.txt",
   
   "abalone": {
-      "k1": 50,
-      "candidates_multiplier": 2,
-      "energy_multiplier": 2
+      "k1": 20,
+      "candidates_multiplier": 10,
+      "delta":1,
+      "radius":0.7,
+      "counts":10
     },
     "balancescale": {
       "k1": 20,
@@ -49,16 +52,25 @@
     "mnist2d": {
       "k1": 200,
       "candidates_multiplier": 2,
-      "energy_multiplier": 2
+      "energy_multiplier": 2,
+           "delta":5e-4,
+           "radius":1,
+      "counts":10
     },
     "postures": {
-      "k1": 100,
-      "candidates_multiplier": 1,
-      "energy_multiplier": 2
-    },
-    "celltypes": {
       "k1": 400,
       "candidates_multiplier": 2,
-      "energy_multiplier": 2
+      "energy_multiplier": 2,
+      "delta":5e-2,
+           "radius":1,
+      "counts":50
+    },
+    "celltypes": {
+      "k1": 200,
+      "candidates_multiplier": 2,
+      "energy_multiplier": 2,
+      "delta":5e-4,
+      "radius":1,
+      "counts":10
     }
 }

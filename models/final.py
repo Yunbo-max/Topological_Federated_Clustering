@@ -43,30 +43,34 @@ def dist(a, b, ax=1):
     return np.linalg.norm(a - b, axis=ax)
 
 def generate_synthetic_candidates(data, n_candidates_multiplier=1.5):
-    """Generate synthetic candidate points using a grid approach"""
-    n_candidates = int(len(data) * n_candidates_multiplier)
+    """Generate grid-like candidates for any dimension"""
+    n = len(data)
+    dim = data.shape[1]
+    n_candidates = int(np.ceil(np.sqrt(n * n_candidates_multiplier)))**2
+
     
-    # Create grid based on data bounds
-    mins = np.min(data, axis=0)
-    maxs = np.max(data, axis=0)
+    # Calculate bounds with padding
+    mins = np.min(data, axis=0) - 0.0 * (np.max(data, axis=0) - np.min(data, axis=0))
+    maxs = np.max(data, axis=0) + 0.0 * (np.max(data, axis=0) - np.min(data, axis=0))
     
-    # Expand bounds slightly
-    range_expand = 0.1
-    mins -= range_expand * (maxs - mins)
-    maxs += range_expand * (maxs - mins)
+    # Calculate points per dimension (approximate n-D grid)
+    points_per_dim = int(np.ceil(n_candidates ** (1/dim)))
     
-    # Generate grid points
-    if data.shape[1] == 2:
-        grid_size = int(np.sqrt(n_candidates))
-        x = np.linspace(mins[0], maxs[0], grid_size)
-        y = np.linspace(mins[1], maxs[1], grid_size)
-        xx, yy = np.meshgrid(x, y)
-        candidates = np.column_stack([xx.ravel(), yy.ravel()])
-    else:
-        # For higher dimensions, use random sampling within bounds
-        candidates = np.random.uniform(mins, maxs, (n_candidates, data.shape[1]))
+    # Generate grid
+    grid_axes = [np.linspace(mins[d], maxs[d], points_per_dim) for d in range(dim)]
+    mesh = np.meshgrid(*grid_axes)
+    candidates = np.vstack([m.ravel() for m in mesh]).T
+    
+    # If we generated too many points, randomly subsample
+    if len(candidates) > n_candidates:
+        candidates = candidates[np.random.choice(len(candidates), n_candidates, replace=False)]
     
     return candidates
+
+import numpy as np
+from sklearn.neighbors import KernelDensity
+from scipy.spatial.distance import cdist
+
 
 
 import numpy as np
@@ -94,7 +98,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 from scipy.spatial.distance import squareform, pdist
-
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.spatial.distance import cdist
 
 
 
@@ -220,27 +226,115 @@ def plot_region_tree(root):
         pos_str = f"{node.weighted_position.round(2)}" if node.weighted_position is not None else "None"
         print(f"{pre}{node.name} (P: {node.potential:.2f}, Pos: {pos_str})")
 
-def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplier, n_threshold_steps=20):
-    """Select centroids with tree-based region evolution tracking"""
-    n = data.shape[0]
-    
-    # Generate synthetic candidates
-    synthetic_candidates = generate_synthetic_candidates(data, n_candidates_multiplier=candidates_multiplier)
-    
-    # Calculate distances and energies
-    candidate_distances = cdist(data, synthetic_candidates, 'euclidean')  # or your preferred metric
-    
-    # eps = np.percentile(candidate_distances[candidate_distances > 0], 1)
-    eps = 5e-4
-    candidate_energy = np.sum(1/(candidate_distances**energy_multiplier + eps), axis=0)
-    total_energy = candidate_energy 
-    
-    # # Region analysis
-    # min_e, max_e = np.min(total_energy), np.max(total_energy)
-    # thresholds = np.linspace(min_e, max_e, n_threshold_steps)
+
+def plot_energy_heatmap(data, candidate_energy, synthetic_candidates):
+        """
+        Plot the candidate energies as a heatmap.
+        
+        Parameters:
+        - data: Original data points (2D array)
+        - candidate_energy: Energy values for each candidate (1D array)
+        - synthetic_candidates: Positions of synthetic candidates (2D array)
+        """
+        plt.figure(figsize=(10, 8))
+        
+        # Create a scatter plot of the original data points
+        plt.scatter(data[:, 0], data[:, 1], c='blue', s=10, label='Original Data')
+        
+        # Create a scatter plot of the synthetic candidates colored by energy
+        sc = plt.scatter(synthetic_candidates[:, 0], synthetic_candidates[:, 1], 
+                        c=candidate_energy, cmap='viridis', s=50, 
+                        label='Synthetic Candidates')
+        
+        # Add colorbar
+        plt.colorbar(sc, label='Candidate Energy')
+        
+        # plt.title('Candidate Energy Heatmap')
+        plt.xlabel('X coordinate')
+        plt.ylabel('Y coordinate')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
 
 
-    def get_energy_midpoints(total_energy):
+
+# Visualization for energy grid regions
+def plot_region_evolution(region_evolution, energy_grid_shape):
+    """Plot the region evolution using the energy grid structure"""
+    last_steps = sorted(region_evolution.items())[-10:]  # Last 10 thresholds
+    
+    fig, axes = plt.subplots(2, 5, figsize=(20, 8))
+    axes = axes.ravel()
+    
+    for ax, (step, info) in zip(axes, last_steps):
+        # Reshape labels to energy grid
+        region_grid = info['labels'].reshape(energy_grid_shape)
+        
+        # Plot as image
+        im = ax.imshow(region_grid, cmap='tab20', origin='lower')
+        ax.set_title(f"Thresh: {info['threshold']:.2f}\nRegions: {info['n_regions']}", fontsize=10)
+        
+        # Add colorbar for first plot
+        if step == last_steps[0][0]:
+            plt.colorbar(im, ax=ax, label='Region ID')
+    
+    plt.suptitle("Energy Grid Region Evolution", y=1.02)
+    plt.tight_layout()
+    plt.show()
+
+
+from sklearn.neighbors import NearestNeighbors
+from sklearn.cluster import DBSCAN
+
+
+def generate_highdim_candidates(data, n_candidates_multiplier=1.5):
+    """Generate candidates adapted to high dimensions"""
+    """
+    Generate random candidates within the observed bounds of the data.
+    
+    Args:
+        data: Input array of shape (n_samples, n_features).
+        n_candidates_multiplier: Multiplier to determine number of candidates 
+                                (n_candidates = n_samples * multiplier).
+    
+    Returns:
+        candidates: Array of shape (n_candidates, n_features).
+    """
+    n_samples, n_features = data.shape
+    n_candidates = int(n_samples * n_candidates_multiplier)
+    
+    # Get min/max bounds for each feature (with optional padding)
+    mins = np.min(data, axis=0)
+    maxs = np.max(data, axis=0)
+    
+    # Generate uniform random samples within bounds
+    candidates = np.random.uniform(
+        low=mins,
+        high=maxs,
+        size=(n_candidates, n_features))
+    
+    return candidates
+
+def track_splits(prev_labels, current_labels):
+    """Track how clusters split using graph connections"""
+    split_info = {}
+    
+    for new_label in np.unique(current_labels):
+        if new_label == 0:
+            continue
+            
+        # Find which previous clusters contributed to this new cluster
+        parent_labels = prev_labels[current_labels == new_label]
+        unique_parents, counts = np.unique(parent_labels[parent_labels != 0], return_counts=True)
+        
+        if len(unique_parents) > 0:
+            dominant_parent = unique_parents[np.argmax(counts)]
+            split_info[new_label] = dominant_parent
+            
+    return split_info
+
+
+def get_energy_midpoints(total_energy):
         # Sort the energy values from smallest to largest
         sorted_energy = np.sort(total_energy)
         
@@ -249,95 +343,269 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
         
         return midpoints
 
+
+# Helper functions
+def get_energy_midpoints(energy):
+    sorted_energy = np.sort(energy)
+    return (sorted_energy[1:] + sorted_energy[:-1]) / 2
+
+# def generate_random_candidates(data, n_candidates_multiplier=1.5):
+#     mins = np.min(data, axis=0)
+#     maxs = np.max(data, axis=0)
+#     n_candidates = int(len(data) * n_candidates_multiplier)
+#     return np.random.uniform(mins, maxs, size=(n_candidates, data.shape[1]))
+
+
+def generate_random_candidates(data, n_candidates_multiplier=1.5):
+    mins = np.min(data, axis=0)
+    maxs = np.max(data, axis=0)
+    n_candidates = int(len(data) * n_candidates_multiplier)
+    
+    # Calculate points per dimension (approximate)
+    dim = data.shape[1]
+    points_per_dim = int(np.ceil(n_candidates ** (1/dim)))
+    
+    # Create grid
+    axes = [np.linspace(mins[d], maxs[d], points_per_dim) for d in range(dim)]
+    grid = np.meshgrid(*axes)
+    return np.vstack([g.ravel() for g in grid]).T[:n_candidates]
+
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import connected_components
+from collections import defaultdict
+
+def compute_avg_candidate_distance(synthetic_candidates, k=2):
+    """
+    Compute the average distance between each candidate and its k-nearest neighbors.
+    
+    Args:
+        synthetic_candidates: Array of shape (n_candidates, n_features)
+        k: Number of neighbors to consider (default=2: closest non-self point)
+    
+    Returns:
+        avg_distance: Mean pairwise distance between candidates
+        median_distance: Median distance (more robust to outliers)
+    """
+    nbrs = NearestNeighbors(n_neighbors=k).fit(synthetic_candidates)
+    distances, _ = nbrs.kneighbors(synthetic_candidates)
+    
+    # Exclude self-distance (column 0) if k > 1
+    neighbor_distances = distances[:, 1:] if k > 1 else distances
+    return np.mean(neighbor_distances), np.median(neighbor_distances)
+
+
+from sklearn.manifold import TSNE
+import matplotlib.pyplot as plt
+
+def visualize_energy_clusters(active_mask, active_points, total_energy, clustering, threshold, iteration):
+    """Visualize energy field and DBSCAN clusters in 2D with controlled plotting"""
+    # Only plot first 20 or every 100th iteration
+    if iteration >= 20 and iteration % 100 != 0:
+        return
+    
+    # Project to 2D using t-SNE (with progress tracking)
+    print(f"Visualizing iteration {iteration}...")
+    tsne = TSNE(n_components=2, random_state=42, verbose=0)
+    points_2d = tsne.fit_transform(active_points)
+    
+    # Create figure with improved layout
+    fig = plt.figure(figsize=(18, 8))
+    gs = fig.add_gridspec(1, 2, width_ratios=[1, 1.2])
+    ax1 = fig.add_subplot(gs[0])
+    ax2 = fig.add_subplot(gs[1])
+    
+    # Plot 1: Energy Heatmap with better normalization
+    energy_values = total_energy[active_mask][:len(points_2d)]
+    sc1 = ax1.scatter(points_2d[:, 0], points_2d[:, 1], 
+                     c=energy_values, 
+                     cmap='inferno', 
+                     alpha=0.8,
+                     norm=LogNorm() if np.any(energy_values <= 0) else None)
+    cbar = plt.colorbar(sc1, ax=ax1, label='Log Energy Level')
+    ax1.set_title(f"Iter {iteration}: Energy Field\n(Threshold={threshold:.2f})")
+    
+    # Plot 2: DBSCAN Clusters with improved labeling
+    unique_labels = np.unique(clustering.labels_)
+    n_clusters = len(unique_labels) - (1 if -1 in unique_labels else 0)
+    color_map = plt.cm.get_cmap('gist_ncar', n_clusters + 1)
+    
+    # Plot noise first (so it stays in background)
+    noise_mask = clustering.labels_ == -1
+    if np.any(noise_mask):
+        ax2.scatter(points_2d[noise_mask, 0], points_2d[noise_mask, 1],
+                   c='gray', alpha=0.2, s=10, label=f'Noise ({np.sum(noise_mask)} pts)')
+    
+    # Plot clusters with size proportional to energy
+    cluster_sizes = []
+    for i, label in enumerate(unique_labels[unique_labels != -1]):
+        mask = clustering.labels_ == label
+        size = 50 * np.sqrt(np.mean(energy_values[mask]))  # Scale by energy
+        ax2.scatter(points_2d[mask, 0], points_2d[mask, 1],
+                   c=[color_map(i)],
+                   s=size,
+                   alpha=0.7,
+                   label=f'Cluster {label} ({np.sum(mask)} pts)')
+        cluster_sizes.append(np.sum(mask))
+    
+    # Add summary statistics
+    stats_text = (f"Clusters: {n_clusters}\n"
+                 f"Largest: {max(cluster_sizes, default=0)} pts\n"
+                 f"Noise: {np.sum(noise_mask)} pts\n"
+                 f"eps: {getattr(clustering, 'eps', 'N/A'):.2f}")
+    ax2.text(1.05, 0.5, stats_text, transform=ax2.transAxes, 
+            bbox=dict(facecolor='white', alpha=0.8))
+    
+    ax2.set_title(f"DBSCAN Clustering\n(MinPts={clustering.min_samples})")
+    ax2.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    
+    plt.tight_layout()
+    plt.savefig(f'cluster_iter_{iteration:04d}.png', dpi=150, bbox_inches='tight')
+    plt.close()  # Prevents memory leaks in loops
+
+
+def plot_region_splits(coords_2d, labels, active_mask, threshold, iteration, split_info):
+    """Visualize region splitting in 2D PCA space"""
+    plt.figure(figsize=(12, 6))
+    
+    # Plot all points (inactive as gray)
+    plt.scatter(coords_2d[~active_mask, 0], coords_2d[~active_mask, 1], 
+                c='gray', alpha=0.1, s=10, label='Inactive')
+    
+    # Plot active regions
+    unique_labels = np.unique(labels[active_mask])
+    colors = plt.cm.tab20(np.linspace(0, 1, len(unique_labels)))
+    
+    for label, color in zip(unique_labels, colors):
+        if label == 0: continue
+        mask = (labels == label) & active_mask
+        plt.scatter(coords_2d[mask, 0], coords_2d[mask, 1],
+                   c=[color], 
+                   s=30,
+                   label=f'Region {label} (Parent: {split_info.get(label, "None")})')
+    
+    # plt.title(f"Iteration {iteration}\nThreshold: {threshold:.4f}, Regions: {len(unique_labels)-1}")
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    plt.show()
+
+
+def penalized_energy_centroids(data, nc,all_masses, candidates_multiplier, energy_multiplier, epsilon,delta,radius,counts):
+    """High-dimensional version with region tracking and visualization"""
+    # Generate candidates
+    # Generate candidates
+    synthetic_candidates = generate_random_candidates(data, n_candidates_multiplier=candidates_multiplier)
+    
+    # Calculate distances between all data points (centroids) and candidates
+    candidate_distances = cdist(data, synthetic_candidates, 'euclidean')
+
+    # print('mass',all_masses)
+    
+    # Calculate potential energy for each candidate using mass weighting
+    # E(r) = sum( w_i / (||r - s_i||^p + δ) )  (Equation 3)
+    # where:
+    # - w_i is the mass (all_masses[i])
+    # - s_i is the centroid (data[i])
+    # - p is energy_multiplier (typically 2)
+    # - δ is the softening parameter
+
+    # Verify shapes
+    print(f"Data shape: {data.shape}")  # Should be (n_centroids, n_features)
+    print(f"All_masses shape: {all_masses.shape}")  # Should be (n_centroids,)
+    print(f"Candidate distances shape: {candidate_distances.shape}")
+    
+    # Reshape masses to allow broadcasting
+    weighted_masses = all_masses.reshape(-1, 1)  # Shape (n_centroids, 1)
+    
+    # Calculate energy contribution from each centroid to each candidate
+    # energy_contributions = weighted_masses / (candidate_distances**energy_multiplier + delta)
+    energy_contributions = weighted_masses / (candidate_distances**energy_multiplier + delta)
+    
+    
+    # Sum contributions from all centroids for each candidate
+    total_energy = np.sum(energy_contributions, axis=0)
+    
+    # Get energy thresholds
     thresholds = get_energy_midpoints(total_energy)
 
-    # # Subsample: Take 1, skip 9, repeat
-    # keep_mask = np.zeros(len(thresholds), dtype=bool)
-    # keep_mask[::1] = True  # Set every 10th element to True (keep 1, skip 9)
-
-    # thresholds = thresholds[keep_mask]
-
-    print('len',len(thresholds))
-
+    # thresholds = thresholds[thresholds.shape[0]//2:]
     
-    # Store region evolution
+   
+    
+    # Initialize tracking
     region_evolution = defaultdict(dict)
-    prev_labels = np.ones(len(synthetic_candidates), dtype=int)  # All points start in region 1
-    candidate_storage = {}
+    prev_labels = np.ones(len(synthetic_candidates), dtype=int)
+    
+    # Set up visualization
+    from sklearn.decomposition import PCA
+    if synthetic_candidates.shape[1]>2:
+        pca = PCA(n_components=2)
+        coords_2d = pca.fit_transform(synthetic_candidates)
+    
+    else:
+        coords_2d = synthetic_candidates
     
     for i, threshold in enumerate(thresholds):
-        # Create binary map (1 if energy >= threshold)
-        binary_map = (total_energy >= threshold).astype(int)
+        active_mask = (total_energy >= threshold)
+        active_points = synthetic_candidates[active_mask]
         
-        # Reshape for labeling (assuming grid structure)
-        grid_size = int(np.sqrt(len(synthetic_candidates)))
-        
-        binary_grid = binary_map.reshape((grid_size, grid_size))
+        if len(active_points) == 0:
+            continue
 
+        # # Create connectivity graph
+        # radius1 = np.percentile(candidate_distances[candidate_distances > 0], 1)  # 5th percentile of non-zero distances
+        # print('radius',radius1)
+       
+        nbrs = NearestNeighbors(radius=radius).fit(active_points)
+        adjacency = nbrs.radius_neighbors_graph(active_points, mode='connectivity')
+        n_components, labels = connected_components(adjacency)
 
-        labeled, n_regions = ndi_label(binary_grid)
-        current_labels = labeled.ravel()
         
-        # Filter small regions (less than 5 nodes)
-        unique_labels, counts = np.unique(current_labels, return_counts=True)
-        small_regions = unique_labels[counts <= 10]
+        # Map labels
+        current_labels = np.zeros(len(synthetic_candidates), dtype=int)
+        current_labels[active_mask] = labels + 1
+
+        unique_labels, count = np.unique(current_labels[current_labels != 0], return_counts=True)
+        small_regions = unique_labels[count <= counts]
+        current_labels[np.isin(current_labels, small_regions)] = 0
         
-        # Create mask of regions to keep
-        keep_mask = ~np.isin(current_labels, small_regions)
-        
-        # Second labeling pass on filtered regions
-        filtered_binary = binary_map.copy()
-        filtered_binary[~keep_mask] = 0
-        filtered_grid = filtered_binary.reshape((grid_size, grid_size))
-        relabeled, n_regions = ndi_label(filtered_grid)
-        current_labels = relabeled.ravel()
-     
-        # Track region splits
+        # Track splits
         split_info = {}
         for new_label in np.unique(current_labels):
-            if new_label == 0:  # Skip background
-                continue
+            if new_label == 0: continue
             parent_labels = prev_labels[current_labels == new_label]
-            parent_labels = parent_labels[parent_labels != 0]  # Remove background
+            parent_labels = parent_labels[parent_labels != 0]
             if len(parent_labels) > 0:
                 dominant_parent = np.bincount(parent_labels).argmax()
                 split_info[new_label] = dominant_parent
         
+        # Store evolution
         region_evolution[i] = {
             'threshold': threshold,
             'labels': current_labels,
-            'n_regions': n_regions,
+            'n_regions': n_components,
             'splits': split_info
         }
-
-        # mask = total_energy >= threshold
-        # active_candidates = synthetic_candidates[mask]
-        # active_energies = total_energy[mask]
         
-        # # Only store at the specified iteration (last 20th)
-        # if len(active_candidates) > 0 and i == len(thresholds) - 20:
-        #     # Sort by energy (descending) and get indices
-        #     print('active_energies',active_energies)
-        #     ranked_indices = np.argsort(-active_energies)
-            
-        #     # Store sorted results
-        #     candidate_storage = {
-        #         'threshold': threshold,
-        #         'candidates': active_candidates[ranked_indices],
-        #         'energies': active_energies[ranked_indices],
-        #         'n_active': len(active_candidates),
-        #         'ranked_indices': ranked_indices  # Optional: store the sorting indices
-        #     }
-
-
-        # Store grid information (positions and potentials) for active regions
-       
+        # # Visualize every 100 steps
+        # if i % 100 == 0:
+        #     plot_region_splits(
+        #         coords_2d, 
+        #         current_labels, 
+        #         active_mask,
+        #         threshold, 
+        #         i,
+        #         split_info
+        #     )
+        
         prev_labels = current_labels
+    
 
 
+    # Select final centroids based on region evolution
 
-        # if n_regions >=4:
+        # if n_regions >=20:
         #     break
+
     
     # Visualization for 2D
     import matplotlib.pyplot as plt
@@ -345,28 +613,8 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
 
     import matplotlib.pyplot as plt
 
-    # Visualization for 2D - Last 10 thresholds only
-    if synthetic_candidates.shape[1] == 2:
-        # Get the last 10 steps from region_evolution
-        print(len(region_evolution.items()))
-        last_steps = sorted(region_evolution.items())[-20:]  # Takes last 10 thresholds
-        
-        # Create plot grid (2 rows x 5 columns)
-        fig, axes = plt.subplots(4, 5, figsize=(20, 8))
-        axes = axes.ravel()  # Flatten for easy iteration
-        
-        for ax, (step, info) in zip(axes, last_steps):
-            sc = ax.scatter(
-                synthetic_candidates[:, 0], synthetic_candidates[:, 1],
-                c=info['labels'], cmap='tab20', s=8, alpha=0.8
-            )
-            ax.set_title(f"Thresh: {info['threshold']:.2f}\nRegions: {info['n_regions']}",
-                        fontsize=10)
-            ax.set_xticks([])
-            ax.set_yticks([])
-        
-        plt.tight_layout()
-        plt.show()
+
+   
 
         
 
@@ -398,6 +646,7 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
         # Track all ancestor paths to ensure topological independence
         used_branches = set()
         
+        
         for leaf in all_leaves:
             if len(selected) >= nc:
                 break
@@ -421,6 +670,8 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
                 # Add all nodes in path to used branches
                 used_branches.update(path)
         
+        print('selecte',len(selected))
+        
         # If we still need more, take highest potential regardless
         if len(selected) < nc:
             remaining = nc - len(selected)
@@ -431,7 +682,7 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
                     if remaining <= 0:
                         break
         
-        print('len',len(selected))
+        # print('len',len(selected))
 
         
         return selected[:nc]
@@ -472,78 +723,478 @@ def penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplie
                 syn_centroids = np.concatenate([syn_centroids, ranked_candidates[:remaining]])
 
 
-    return syn_centroids,None
+    return syn_centroids,None,total_energy,synthetic_candidates
 
 
 
 
-def SNN_optimized(nc: int, data: np.ndarray,candidates_multiplier, energy_multiplier) -> Tuple[np.ndarray, np.ndarray]:
+def SNN_optimized(nc: int, data: np.ndarray, all_masses, candidates_multiplier, energy_multiplier, epsilon, delta, radius, counts, true_labels=None) -> Tuple[np.ndarray, np.ndarray]:
     """Optimized SNN clustering using synthetic grid candidates"""
     n, d = data.shape
     distance = squareform(pdist(data))
     
     # Step 2: Energy calculation (on real data)
-    eps = np.percentile(distance[distance > 0], 5)
-    energy = np.sum(1/(distance**2 + eps**2), axis=1)
-
+    energy = np.sum(1/(distance**2 + delta), axis=1)
+    
     # Step 4: Penalized centroid selection from synthetic candidates
-    syn_centroids, centroid_indices = penalized_energy_centroids(data, nc, candidates_multiplier, energy_multiplier)
+    syn_centroids, centroid_indices,total_energy,synthetic_candidates = penalized_energy_centroids(data, nc, all_masses, candidates_multiplier, energy_multiplier, epsilon, delta, radius, counts)
     
     # For now, no assignments (set to None or zeros)
     indexAssignment = np.zeros(n, dtype=int)  # Placeholder
+
     
-    # Visualization
-    if d <= 3:
-        plot_clusters(data, syn_centroids, energy, assignments=indexAssignment)
+    
+#     # Visualization with true labels
+#     plot_clusters(data, syn_centroids, energy, true_labels=true_labels, assignments=indexAssignment)
+#     plot_clusters2(synthetic_candidates, total_energy, syn_centroids)
+   
+    
+
+#     plot_energy_3d(
+#     candidate_points=synthetic_candidates,
+#     total_energy=total_energy,
+#     synthetic_centroids=syn_centroids,
+#     true_labels=true_labels  # optional
+# )
+#     plot_contour_layers(synthetic_candidates, total_energy)
     
     return syn_centroids, centroid_indices
 
-def plot_clusters(data, synthetic_centroids, energy, assignments=None):
-    """Visualize the data points with synthetic centroids"""
-    plt.figure(figsize=(12, 7))
+
+
+
+# import numpy as np
+# import matplotlib.pyplot as plt
+# from mpl_toolkits.mplot3d import Axes3D
+# from matplotlib import cm
+# from scipy.interpolate import griddata
+
+# def plot_contour_layers(candidate_points, total_energy):
+#     """
+#     Plot 3 solid planes with contour cutouts showing where energy exceeds each level
     
-    # Calculate energy threshold
-    min_e, max_e = np.min(energy), np.max(energy)
-    threshold = min_e
-    high_energy_mask = energy > threshold
+#     Parameters:
+#     - candidate_points: 2D array of candidate points (shape Nx2)
+#     - total_energy: 1D array of energy values (shape N,)
+#     """
+#     # Create grid interpolation
+#     xi = np.linspace(min(candidate_points[:,0]), max(candidate_points[:,0]), 200)
+#     yi = np.linspace(min(candidate_points[:,1]), max(candidate_points[:,1]), 200)
+#     zi = griddata(candidate_points, total_energy, (xi[None,:], yi[:,None]), method='cubic')
     
-    # Plot all points (below threshold in blue)
-    plt.scatter(data[~high_energy_mask, 0], data[~high_energy_mask, 1], 
-                c='lightblue', alpha=0.4, s=30, label='Below energy threshold')
+#     # Calculate layer heights (10%, 50%, 90% of energy range)
+#     min_e, max_e = np.nanmin(zi), np.nanmax(zi)
+#     levels = [min_e + (max_e-min_e)*h for h in [0.1, 0.25,0.5,0.75]]
     
-    # Plot high-energy points (red)
-    plt.scatter(data[high_energy_mask, 0], data[high_energy_mask, 1], 
-                c='red', alpha=0.6, s=30, label='Above energy threshold')
+#     # Create figure
+#     fig = plt.figure(figsize=(14, 10))
+#     ax = fig.add_subplot(111, projection='3d')
+    
+#     # Create colormap for planes
+#     colors = ['skyblue', 'lightgreen', 'mistyrose']
+    
+#     # Plot each plane with holes
+#     X, Y = np.meshgrid(xi, yi)
+#     for i, (level, color) in enumerate(zip(levels, colors)):
+#         # Create mask for regions BELOW current level (the "holes")
+#         mask = zi < level
+        
+#         # Create semi-transparent plane
+#         ax.plot_surface(X, Y, np.full_like(X, level), 
+#                         color=color, alpha=0.5, shade=False)
+        
+#         # Add contour lines at the plane edges
+#         contours = ax.contour(X, Y, zi, levels=[level], 
+#                              colors=[color], linestyles='solid', linewidths=2)
+        
+#         # Fill the holes (regions below threshold)
+#         if i > 0:  # Skip for bottom plane to see through
+#             ax.contourf(X, Y, mask.astype(float), levels=[0.5, 1.5], 
+#                         colors=['none', color], alpha=0.3, zdir='z', offset=level)
+    
+#     # Style the plot
+#     ax.set_xlabel('X Coordinate')
+#     ax.set_ylabel('Y Coordinate')
+#     ax.set_zlabel('Energy Level')
+#     # ax.set_title('Energy Field Contour Planes with Cutouts')
+#     ax.view_init(elev=30, azim=45)
+    
+#     # Create custom legend
+#     from matplotlib.patches import Patch
+#     legend_elements = [
+#         Patch(facecolor='skyblue', alpha=0.5, label=f'Base Plane ({levels[0]:.1f})'),
+#         Patch(facecolor='lightgreen', alpha=0.5, label=f'Mid Plane ({levels[1]:.1f})'),
+#         Patch(facecolor='mistyrose', alpha=0.5, label=f'Top Plane ({levels[2]:.1f})')
+#     ]
+#     ax.legend(handles=legend_elements, loc='upper right')
+    
+#     plt.tight_layout()
+#     plt.show()
+
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import cm
+from scipy.interpolate import griddata
+
+def plot_contour_layers(candidate_points, total_energy):
+    """
+    Plot 4 clearly spaced contour planes at 10%, 30%, 50%, and 70% energy levels
+    
+    Parameters:
+    - candidate_points: 2D array of candidate points (shape Nx2)
+    - total_energy: 1D array of energy values (shape N,)
+    """
+    # Create grid interpolation
+    xi = np.linspace(min(candidate_points[:,0]), max(candidate_points[:,0]), 200)
+    yi = np.linspace(min(candidate_points[:,1]), max(candidate_points[:,1]), 200)
+    zi = griddata(candidate_points, total_energy, (xi[None,:], yi[:,None]), method='cubic')
+    
+    # Calculate specific layer heights (10%, 30%, 50%, 70%)
+    min_e, max_e = np.nanmin(zi), np.nanmax(zi)
+    level_percentages = [0.1, 0.3, 0.5, 0.7]
+    levels = [min_e + (max_e-min_e)*h for h in level_percentages]
+    
+    # Apply vertical scaling (3x) to enhance spacing between planes
+    vertical_scale = 3.0
+    scaled_levels = [min_e + (l-min_e)*vertical_scale for l in levels]
+    
+    # Create figure
+    fig = plt.figure(figsize=(8, 6))
+    ax = fig.add_subplot(111, projection='3d')
+    
+    # Create distinct colors for each plane
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']  # Distinct qualitative colors
+    
+    # Plot each plane with contours
+    X, Y = np.meshgrid(xi, yi)
+    for i, (level, color) in enumerate(zip(scaled_levels, colors)):
+        # Create semi-transparent plane
+        ax.plot_surface(X, Y, np.full_like(X, level), 
+                       color=color, alpha=0.5, shade=False)
+        
+        # Add thick contour lines at the plane edges
+        cs = ax.contour(X, Y, zi, levels=[levels[i]], 
+                       colors=[color], linestyles='solid', linewidths=2,
+                       offset=level)
+        
+        # Label the contours with their percentage
+        ax.clabel(cs, cs.levels, inline=True, fmt=f'{level_percentages[i]*100:.0f}%', 
+                 fontsize=10, colors='black')
+
+    # Style the plot
+    ax.set_xlabel('X Coordinate', fontsize=12, labelpad=10)
+    ax.set_ylabel('Y Coordinate', fontsize=12, labelpad=10)
+    ax.set_zlabel('Energy Level (Scaled)', fontsize=12, labelpad=10)
+    
+    # Adjust view and aspect ratio
+    ax.view_init(elev=40, azim=-50)  # Optimal viewing angle
+    ax.set_box_aspect([1, 1, 2])     # Z-axis is 2x longer for better spacing
+    ax.dist = 11                      # Slightly zoom out
+    
+    # Create clean legend
+    from matplotlib.patches import Patch
+    legend_elements = [
+        Patch(facecolor=colors[i], alpha=0.5, 
+              label=f'{int(p*100)}% Level: {levels[i]:.2f}')
+        for i, p in enumerate(level_percentages)
+    ]
+    ax.legend(handles=legend_elements, loc='upper right', 
+              framealpha=0.9, fontsize=10)
+    
+    plt.tight_layout()
+    plt.show()
+
+def plot_clusters(data, synthetic_centroids, energy, true_labels=None, assignments=None):
+    """Visualize clusters in 2D or higher dimensions using t-SNE when needed"""
+    plt.figure(figsize=(8, 6))
+    
+    # Handle dimensionality
+    d = data.shape[1]
+    if d > 2:
+        from sklearn.manifold import TSNE
+        
+        # Combine data and centroids for consistent t-SNE projection
+        combined = np.vstack([data, synthetic_centroids])
+        
+        # Create t-SNE transformer (perplexity auto-adjusted)
+        perplex = min(30, combined.shape[0]-1)
+        tsne = TSNE(n_components=2, perplexity=perplex, random_state=42)
+        projected = tsne.fit_transform(combined)
+        
+        # Split back into data and centroids
+        data_2d = projected[:len(data)]
+        centroids_2d = projected[len(data):]
+        
+        plot_title = "t-SNE Projection of "
+    else:
+        data_2d = data
+        centroids_2d = synthetic_centroids
+        plot_title = ""
+
+    # Plot all points with true labels if available
+    if true_labels is not None:
+        unique_labels = np.unique(true_labels)
+        cmap = plt.cm.get_cmap('tab20', len(unique_labels))
+        
+        # Plot points with true labels
+        for i, label in enumerate(unique_labels):
+            mask = (true_labels == label)
+            plt.scatter(data_2d[mask, 0], data_2d[mask, 1], 
+                        color=cmap(i), alpha=0.6, s=30,
+                        label=f'True class {label}')
+    else:
+        # Only apply energy mask if the dimensions match
+        if len(energy) == len(data_2d):
+            # Calculate energy threshold
+            min_e, max_e = np.min(energy), np.max(energy)
+            threshold = min_e
+            high_energy_mask = energy > threshold
+            
+            # Plot all points (below threshold in blue)
+            plt.scatter(data_2d[~high_energy_mask, 0], data_2d[~high_energy_mask, 1], 
+                        c='lightblue', alpha=0.4, s=30, label='Below energy threshold')
+            
+            # Plot high-energy points (red)
+            plt.scatter(data_2d[high_energy_mask, 0], data_2d[high_energy_mask, 1], 
+                        c='red', alpha=0.6, s=30, label='Above energy threshold')
+        else:
+            # If dimensions don't match, just plot all points
+            plt.scatter(data_2d[:, 0], data_2d[:, 1], 
+                        c='blue', alpha=0.6, s=30, label='All points')
     
     # Plot cluster assignments if available and not all zeros
-    if assignments is not None and not np.all(assignments == 0):
+    if assignments is not None and not np.all(assignments == 0) and len(assignments) == len(data_2d):
         # Override colors for assigned points
-        scatter = plt.scatter(data[:, 0], data[:, 1], c=assignments, 
+        scatter = plt.scatter(data_2d[:, 0], data_2d[:, 1], c=assignments, 
                              cmap='tab20', alpha=0.7, s=30, label='Cluster assignments')
         plt.colorbar(scatter, label='Cluster ID')
     
     # Plot synthetic centroids (large gold stars)
-    plt.scatter(synthetic_centroids[:, 0], synthetic_centroids[:, 1],
+    plt.scatter(centroids_2d[:, 0], centroids_2d[:, 1],
                 marker='*', s=400, c='gold', edgecolors='black',
                 linewidths=2, label='Synthetic Centroids', zorder=5)
     
     # Add numbering to centroids
-    for i, centroid in enumerate(synthetic_centroids):
+    for i, centroid in enumerate(centroids_2d):
         plt.annotate(f'{i+1}', (centroid[0], centroid[1]), 
                     xytext=(5, 5), textcoords='offset points',
                     fontsize=12, fontweight='bold', color='black')
     
-    plt.title(f'Synthetic Centroids Selection (Energy Threshold: {threshold:.2f})')
-    plt.xlabel('Feature 1')
-    plt.ylabel('Feature 2')
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    title_suffix = "with True Labels" if true_labels is not None else ""
+    # plt.title(f"{plot_title}Synthetic Centroids {title_suffix}")
+    plt.xlabel('Component 1' if d > 2 else 'Feature 1')
+    plt.ylabel('Component 2' if d > 2 else 'Feature 2')
+    plt.legend(loc='lower right', framealpha=0.9)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.show()
 
 
 
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import Normalize
 
+def plot_clusters2(candidate_points, total_energy, synthetic_centroids):
+    """
+    Plot a heatmap of the energy field with synthetic centroids marked
+    
+    Parameters:
+    - candidate_points: 2D array of candidate points (must be 2D for heatmap)
+    - total_energy: 1D array of energy values for each candidate point
+    - synthetic_centroids: Array of centroid positions (will be marked on plot)
+    """
+    # Verify inputs are 2D
+    if candidate_points.shape[1] != 2:
+        raise ValueError("Candidate points must be 2-dimensional for heatmap visualization")
+    
+    plt.figure(figsize=(8, 6))
+    
+    # Create grid interpolation for smooth heatmap
+    from scipy.interpolate import griddata
+    
+    # Create grid coordinates
+    grid_x = np.linspace(min(candidate_points[:,0]), max(candidate_points[:,0]), 200)
+    grid_y = np.linspace(min(candidate_points[:,1]), max(candidate_points[:,1]), 200)
+    grid_x, grid_y = np.meshgrid(grid_x, grid_y)
+    
+    # Interpolate energy values onto grid
+    grid_z = griddata(
+        candidate_points, 
+        total_energy, 
+        (grid_x, grid_y), 
+        method='cubic',
+        fill_value=np.min(total_energy)
+    )
+    
+    # Plot heatmap
+    plt.imshow(
+        grid_z,
+        extent=(min(candidate_points[:,0]), max(candidate_points[:,0]), 
+                min(candidate_points[:,1]), max(candidate_points[:,1])),
+        origin='lower',
+        aspect='auto',
+        cmap='viridis',
+        alpha=0.8
+    )
+    
+    # Add colorbar
+    cbar = plt.colorbar()
+    cbar.set_label('Energy Value', rotation=270, labelpad=20)
+    
+    # Mark centroids
+    plt.scatter(
+        synthetic_centroids[:,0], 
+        synthetic_centroids[:,1],
+        marker='*',
+        s=400,
+        c='gold',
+        edgecolors='black',
+        linewidths=1.5,
+        label='Centroids'
+    )
+    
+    # Add numbering to centroids
+    for i, (x, y) in enumerate(synthetic_centroids):
+        plt.annotate(
+            f'{i+1}', 
+            (x, y),
+            xytext=(5, 5),
+            textcoords='offset points',
+            fontsize=12,
+            fontweight='bold',
+            color='white'
+        )
+    
+    # plt.title('Energy Field Heatmap with Centroids')
+    plt.xlabel('Feature 1')
+    plt.ylabel('Feature 2')
+    plt.legend(loc='upper right')
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import cm
+
+def plot_energy_3d(candidate_points, total_energy, synthetic_centroids=None, true_labels=None):
+    """
+    Visualize the energy field in 3D with peaks and geometric landscape
+    
+    Parameters:
+    - candidate_points: The candidate points (2D or 3D)
+    - total_energy: Energy values for each candidate point
+    - synthetic_centroids: Optional centroids to plot
+    - true_labels: Optional true labels for coloring original points
+    """
+    fig = plt.figure(figsize=(8, 6))
+    
+    # Create 3D axis
+    ax = fig.add_subplot(111, projection='3d')
+    
+    # Check if we need to reduce dimensions
+    if candidate_points.shape[1] > 3:
+        from sklearn.manifold import TSNE
+        perplex = min(30, candidate_points.shape[0]-1)
+        projected_points = TSNE(n_components=3, perplexity=perplex, random_state=42).fit_transform(candidate_points)
+        if synthetic_centroids is not None:
+            projected_centroids = TSNE(n_components=3, perplexity=perplex, random_state=42).fit_transform(synthetic_centroids)
+    else:
+        projected_points = candidate_points
+        if synthetic_centroids is not None:
+            projected_centroids = synthetic_centroids
+    
+    # Normalize energy for coloring and height
+    energy_min, energy_max = np.min(total_energy), np.max(total_energy)
+    norm_energy = (total_energy - energy_min) / (energy_max - energy_min)
+    
+    # Create surface or scatter plot based on point density
+    if len(candidate_points) > 1000:  # For large datasets, use surface plot
+        # Create grid interpolation
+        from scipy.interpolate import griddata
+        grid_x, grid_y = np.mgrid[
+            np.min(projected_points[:,0]):np.max(projected_points[:,0]):100j,
+            np.min(projected_points[:,1]):np.max(projected_points[:,1]):100j
+        ]
+        grid_z = griddata(
+            projected_points[:,:2], 
+            total_energy, 
+            (grid_x, grid_y), 
+            method='cubic', 
+            fill_value=energy_min
+        )
+        
+        # Plot surface
+        surf = ax.plot_surface(
+            grid_x, grid_y, grid_z, 
+            cmap=cm.viridis,
+            alpha=0.8,
+            linewidth=0, 
+            antialiased=True
+        )
+    else:  # For smaller datasets, use scatter plot
+        sc = ax.scatter(
+            projected_points[:,0], 
+            projected_points[:,1], 
+            total_energy,
+            c=total_energy,
+            cmap='viridis',
+            s=50,
+            alpha=0.7,
+            edgecolors='w',
+            linewidth=0.5
+        )
+    
+    # # Plot synthetic centroids if provided
+    # if synthetic_centroids is not None:
+    #     # Get energy values for centroids by finding nearest candidates
+    #     dists = cdist(projected_centroids, projected_points)
+    #     nearest_indices = np.argmin(dists, axis=1)
+    #     centroid_energies = total_energy[nearest_indices]
+        
+    #     ax.scatter(
+    #         projected_centroids[:,0],
+    #         projected_centroids[:,1],
+    #         centroid_energies,
+    #         marker='*',
+    #         s=400,
+    #         c='gold',
+    #         edgecolors='black',
+    #         depthshade=True,
+    #         label='Centroids'
+    #     )
+        
+    #     # Add labels to centroids
+    #     for i, (x, y, z) in enumerate(zip(
+    #         projected_centroids[:,0],
+    #         projected_centroids[:,1],
+    #         centroid_energies
+    #     )):
+    #         ax.text(x, y, z, f'{i+1}', color='black', fontsize=12, fontweight='bold')
+    
+    # Add colorbar
+    mappable = cm.ScalarMappable(cmap=cm.viridis)
+    mappable.set_array(total_energy)
+    cbar = fig.colorbar(mappable, ax=ax, shrink=0.5, aspect=10)
+    cbar.set_label('Energy Value', rotation=270, labelpad=20)
+    
+    # Set labels and title
+    ax.set_xlabel('X Coordinate')
+    ax.set_ylabel('Y Coordinate')
+    ax.set_zlabel('Energy Value')
+    # ax.set_title('3D Energy Landscape with Peaks')
+    
+    # Add legend if centroids are present
+    if synthetic_centroids is not None:
+        ax.legend()
+    
+    # Adjust view angle for better visualization
+    ax.view_init(elev=30, azim=45)
+    
+    plt.tight_layout()
+    plt.show()
 
 
 
@@ -554,116 +1205,100 @@ def add_laplace_noise_vectorized(data, epsilon, sensitivity):
     return data + noise
 
 
-def nnfc_optimized(data_path, use_gpu=False,k1=None,candidates_multiplier=None,energy_multiplier=None,epsilon=None):
+def nnfc_optimized(data_path, use_gpu=False, k1=None, candidates_multiplier=None, energy_multiplier=None, epsilon=None, delta=None, radius=None, counts=None, seed=None):
     """Optimized NNFC function"""
-
     datapkl = load_dataset(data_path)
-    # eachlable = datapkl['eachlable']
-    # order = datapkl['order']
     true_labels = np.array(datapkl['true_label'])  # Original labels for full data
     data = np.array(datapkl['full_data'])
-    print(data.shape)
+    
+    print(f"Original data shape: {data.shape}")  # Should be (4177, d)
+    print(f"True labels shape: {true_labels.shape}")  # Should be (4177,)
     
     corepoints = []
-    # print('order',len(order))
+    masses = []
     print('stage1 starting')
+    np.random.seed(seed)
     
     for i_client in range(10):
-        print('stage1 with the client',i_client)
+        print('stage1 with the client', i_client)
         lodata = datapkl["client_" + str(i_client)]
-
-        # reducer = umap.UMAP(n_components=2, random_state=42)
-        # lodata = reducer.fit_transform(lodata)
-
-
-        # noise = np.random.uniform(0, 1, size=lodata.shape)
-
-        # euc = euclidean_distances(lodata)
-        # row, col = np.diag_indices_from(euc)
-        # euc[row, col] = np.max(euc)
-        # minvalue = np.min(euc)
-        # ratio = []
-        # noisenew = noise
-        # for i in range(noisenew.shape[0]):
-        #     for j in range(noisenew.shape[1]):
-        #         if noisenew[i][j] >= 0.5:
-        #             noisenew[i][j] = 1 - noisenew[i][j]
-
-        # arr = noisenew.reshape(1, noise.shape[0] * noise.shape[1])[0]
-        # ratio = []
-        # for i in arr:
-        #     for j in arr:
-        #         num1 = float(i)/float(j)
-        #         num2 = float(j)/float(i)
-        #         ratio.append(max([num1, num2]))    
-        # maxratio = max(ratio)
-
-
-        # epsilon = 1.01 * maxratio / minvalue
-        # print(epsilon)
         
-        # scale = 1 / epsilon
-        # laplace_noise = np.random.laplace(loc=0.0, scale=scale, size=lodata.shape)
-        # lodata_noisy = lodata + laplace_noise
-
         scale = 1 / epsilon
         laplace_noise = np.random.laplace(loc=0.0, scale=scale, size=lodata.shape)
-
-
         lodata_noisy = lodata + laplace_noise
-
-    
-    
-        # n_clusters = min(len(lodata_noisy) // 3, 50)
-        n_clusters = k1
         
-      
+        n_clusters = k1
         cluster = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
-        centers = cluster.fit(lodata_noisy).cluster_centers_
+        cluster.fit(lodata_noisy)
+        centers = cluster.cluster_centers_
+        
+        # Calculate masses
+        all_sq_dists = []
+        for j in range(n_clusters):
+            cluster_points = lodata_noisy[cluster.labels_ == j]
+            if len(cluster_points) > 0:
+                all_sq_dists.append(np.sum((cluster_points - centers[j])**2))
+        
+        sigma_sq = np.std(all_sq_dists) if len(all_sq_dists) > 1 else 1.0
+        
+        client_masses = []
+        for j in range(n_clusters):
+            cluster_points = lodata_noisy[cluster.labels_ == j]
+            sum_sq_dist = np.sum((cluster_points - centers[j])**2) if len(cluster_points) > 0 else 0
+            w = np.exp(-sum_sq_dist / (2 * sigma_sq)) 
+            client_masses.append(w)
         
         corepoints.append(centers)
+        masses.append(np.array(client_masses))
     
     print('stage2 starting')
-    
     serverdata = np.concatenate(corepoints, axis=0)
-    label = datapkl['true_label']
-    # cnum = len(set(label))
+    all_masses = np.concatenate(masses, axis=0)
+    
+    print(f"Server data (centroids) shape: {serverdata.shape}")  # Should be (10*k1, d)
+    
+    # For the centroids' true labels, we need to assign them based on their closest true data points
+    centroid_true_labels = []
+    for centroid in serverdata:
+        # Find the closest original data point to this centroid
+        closest_idx = np.argmin(np.linalg.norm(data - centroid, axis=1))
+        centroid_true_labels.append(true_labels[closest_idx])
+    centroid_true_labels = np.array(centroid_true_labels)
+    
+    print(f"Centroid true labels shape: {centroid_true_labels.shape}")  # Should match serverdata shape
+    
     cnum = len(set(true_labels))
-    # k = min(5, len(serverdata) // 10)  # Adaptive k
-    # print('cnum',cnum)
-
     print('stage6 starting')
-
-
-    # Old: finalcenter = serverdata[centroid]
-    finalcenter, assignment = SNN_optimized(cnum, serverdata,candidates_multiplier,energy_multiplier)  # Now returns synthetic centroids
-
+    
+    # Pass the centroid true labels instead of the full true labels
+    finalcenter, assignment = SNN_optimized(cnum, serverdata, all_masses, 
+                                          candidates_multiplier, energy_multiplier, 
+                                          epsilon, delta, radius, counts, 
+                                          true_labels=centroid_true_labels)
     
     # Compute distances from all data points to synthetic centroids
-    distances = cdist(data, finalcenter)  # Faster than manual loops
-
-    # Assign each point to the nearest synthetic centroid
-    idx = np.argmin(distances, axis=1) + 1  # +1 for 1-based indexing
-
+    distances = cdist(data, finalcenter)
+    idx = np.argmin(distances, axis=1) + 1
+    
     # Compute metrics
-    ari = round(adjusted_rand_score(label, idx), 4)
-    nmi = round(normalized_mutual_info_score(label, idx), 4)
+    ari = round(adjusted_rand_score(true_labels, idx), 4)
+    nmi = round(normalized_mutual_info_score(true_labels, idx), 4)
 
-    return ari, nmi, [n_clusters,cnum]
+    return ari, nmi, [n_clusters, cnum]
 
 
 
 def run_single_experiment(args):
     """Single experiment runner for multiprocessing"""
-    data_path, use_gpu, k1,candidates_multiplier,energy_multiplier,epsilon = args
-    return nnfc_optimized(data_path, use_gpu,k1,candidates_multiplier,energy_multiplier,epsilon)
+    data_path, use_gpu, k1,candidates_multiplier,energy_multiplier,epsilon,delta,radius,counts,seed = args
+    return nnfc_optimized(data_path, use_gpu,k1,candidates_multiplier,energy_multiplier,epsilon,delta,radius=radius,counts=counts,seed=seed)
 
 
 
 
 
 
-def run_experiments_parallel(data_path, n_runs=1000, n_processes=None, use_gpu=True, k1=None, dataset=None,candidates_multiplier=None,energy_multiplier=None,epsilon=None):
+def run_experiments_parallel(data_path, n_runs=1000, n_processes=None, use_gpu=True, k1=None, dataset=None,candidates_multiplier=None,energy_multiplier=None,epsilon=None,delta=None,radius=None,counts=None,seed=None):
     """Run experiments in parallel, optionally in batches (e.g., for 'mnist2')"""
     if n_processes is None:
         n_processes = min(mp.cpu_count(), 8)  # Limit to 8 processes max
@@ -684,7 +1319,7 @@ def run_experiments_parallel(data_path, n_runs=1000, n_processes=None, use_gpu=T
     run_counter = 0
     for batch_idx in range(batches):
         current_batch_size = min(batch_size, n_runs - run_counter)
-        args_list = [(data_path, use_gpu, k1, candidates_multiplier,energy_multiplier,epsilon) for i in range(current_batch_size)]
+        args_list = [(data_path, use_gpu, k1, candidates_multiplier,energy_multiplier,epsilon,delta,radius,counts,seed) for i in range(current_batch_size)]
 
         with ProcessPoolExecutor(max_workers=n_processes) as executor:
             future_to_run = {executor.submit(run_single_experiment, args): run_counter + i for i, args in enumerate(args_list)}
@@ -695,7 +1330,7 @@ def run_experiments_parallel(data_path, n_runs=1000, n_processes=None, use_gpu=T
                     result = future.result()
                     results.append(result)
 
-                    if len(results) % 100 == 0 or dataset in ['celltypes','covtype','postures','mnist','bot']:
+                    if len(results) % 100 == 0 or dataset in ['celltypes','covtype','postures','mnist','bot','abalone','seeds','thyroid','breast','heart','balancescale','gestures']:
                         elapsed = time.time() - start_time
                         print(f"Completed {len(results)}/{n_runs} runs in {elapsed:.1f}s")
                         print('results_max',max(results))
@@ -711,16 +1346,14 @@ def run_experiments_parallel(data_path, n_runs=1000, n_processes=None, use_gpu=T
 
 
 
-
-
-def evaluate_with_seeds(data_path, use_gpu=True, n_runs=100, n_processes=None,k1=None,dataset=None,seed=None,candidates_multiplier=None,energy_multiplier=None,epsilon=None):
+def evaluate_with_seeds(data_path, use_gpu=True, n_runs=100, n_processes=None,k1=None,dataset=None,seed=None,candidates_multiplier=None,energy_multiplier=None,epsilon=None,delta=None,radius=None,counts=None):
     """Evaluate performance across 10 seeds"""
     SEEDS = list(range(seed))
     seed_results = {'ari_max': [], 'nmi_max': []}
     
     for seed in SEEDS:
         print(f"\n--- Evaluating with seed={seed} ---")
-        results = run_experiments_parallel(data_path, n_runs, n_processes, use_gpu,k1,dataset,candidates_multiplier,energy_multiplier,epsilon)
+        results = run_experiments_parallel(data_path, n_runs, n_processes, use_gpu,k1,dataset,candidates_multiplier,energy_multiplier,epsilon,delta,radius=radius,counts=counts,seed=seed)
         ari_scores = [r[0] for r in results if r[0] > 0]
         nmi_scores = [r[1] for r in results if r[1] > 0]
         
@@ -773,14 +1406,17 @@ def run_experiment(datanames, seeds, n_runs, use_gpu,save_path,config_file):
 
         k1 = config[dataset]['k1']
         candidates_multiplier = config[dataset]['candidates_multiplier']
-        energy_multiplier = config[dataset]['energy_multiplier']
+        energy_multiplier = config['energy_multiplier']
         epsilon = config['epsilon']
+        delta = config[dataset]['delta']
+        radius = config[dataset]['radius']
+        counts = config[dataset]['counts']
      
 
         
 
         # Evaluate with 10 seeds
-        seed_results = evaluate_with_seeds(data_path, use_gpu, n_runs=n_runs, n_processes=n_processes,k1=k1,dataset=dataset,seed=seeds,energy_multiplier=energy_multiplier,candidates_multiplier=candidates_multiplier,epsilon=epsilon)
+        seed_results = evaluate_with_seeds(data_path, use_gpu, n_runs=n_runs, n_processes=n_processes,k1=k1,dataset=dataset,seed=seeds,energy_multiplier=energy_multiplier,candidates_multiplier=candidates_multiplier,epsilon=epsilon,delta=delta,radius=radius,counts=counts)
         
         # Save seed results
         with open(save_path, 'a') as f:

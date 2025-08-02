@@ -1,0 +1,72 @@
+{
+  "model": "final",
+  "datanames": [ "mnist2d"],
+  "seed":1,
+  "n_runs": 1,
+  "epsilon": 1,
+  "energy_multiplier": 2,
+  "save_path": "paper/final.txt",
+  
+  "abalone": {
+      "k1": 20,
+      "candidates_multiplier": 10,
+      "delta":1,
+      "radius":0.5,
+      "counts":10
+    },
+    "balancescale": {
+      "k1": 20,
+      "candidates_multiplier": 2,
+      "energy_multiplier": 2
+    },
+    "breast": {
+      "k1": 9,
+      "candidates_multiplier": 2,
+      "energy_multiplier": 2
+    },
+    "gesture": {
+      "k1": 50,
+      "candidates_multiplier": 2,
+      "energy_multiplier": 2
+    },
+    "heart": {
+      "k1": 10,
+      "candidates_multiplier": 2,
+      "energy_multiplier": 2
+    },
+    "seeds": {
+      "k1": 7,
+      "candidates_multiplier": 2,
+      "energy_multiplier": 2
+    },
+    "thyroid": {
+      "k1": 7,
+      "candidates_multiplier": 2,
+      "energy_multiplier": 2
+    },
+  
+    "mnist2d": {
+      "k1": 1000,
+      "candidates_multiplier": 2,
+      "energy_multiplier": 2,
+           "delta":1e-3,
+           "radius":1,
+      "counts":10
+    },
+    "postures": {
+      "k1": 400,
+      "candidates_multiplier": 2,
+      "energy_multiplier": 2,
+      "delta":5e-2,
+           "radius":1,
+      "counts":50
+    },
+    "celltypes": {
+      "k1": 400,
+      "candidates_multiplier": 2,
+      "energy_multiplier": 2,
+      "delta":10,
+      "radius":1,
+      "counts":10
+    }
+}

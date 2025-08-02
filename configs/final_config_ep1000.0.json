@@ -1,64 +1,85 @@
 {
   "model": "final",
-  "datanames": ["mnist2d"],
+  "datanames": ["gesture"],
   "seed":1,
   "n_runs": 1,
   "epsilon": 1000,
-  "save_path": "results/cfc_epsilon_1.txt",
+  "energy_multiplier": 2,
+  "save_path": "paper/final_epsilon_1000.txt",
   
   "abalone": {
-      "k1": 50,
-      "candidates_multiplier": 2,
-      "energy_multiplier": 2
+      "k1": 20,
+      "candidates_multiplier": 10,
+      "delta":1,
+      "radius":0.6,
+      "counts":10
     },
     "balancescale": {
-      "k1": 20,
-      "candidates_multiplier": 2,
-      "energy_multiplier": 2
+      "k1": 30,
+      "candidates_multiplier": 10,
+      "delta":5e-4,
+      "radius":1,
+      "counts":10
     },
     "breast": {
-      "k1": 9,
-      "candidates_multiplier": 2,
-      "energy_multiplier": 2
+      "k1":   3,
+      "candidates_multiplier": 10,
+      "delta":500,
+      "radius":1,
+      "counts":10
     },
     "gesture": {
       "k1": 50,
-      "candidates_multiplier": 2,
-      "energy_multiplier": 2
+      "candidates_multiplier": 10,
+      "delta":500,
+      "radius":5,
+      "counts":10
     },
     "heart": {
-      "k1": 10,
-      "candidates_multiplier": 2,
-      "energy_multiplier": 2
+      "k1": 2,
+      "candidates_multiplier": 10,
+      "delta":1,
+      "radius":1,
+      "counts":10
     },
     "seeds": {
-      "k1": 7,
-      "candidates_multiplier": 2,
-      "energy_multiplier": 2
+      "k1": 10,
+      "candidates_multiplier": 10,
+      "delta":100,
+      "radius":1,
+      "counts":10
     },
     "thyroid": {
       "k1": 7,
-      "candidates_multiplier": 2,
-      "energy_multiplier": 2
+      "candidates_multiplier": 10,
+      "delta":10,
+      "radius":10,
+      "counts":10
     },
-    "mnist": {
-      "k1": 200,
-      "candidates_multiplier": 1,
-      "energy_multiplier": 2
-    },
+  
     "mnist2d": {
+      "k1": 400,
+      "candidates_multiplier": 5,
+      "energy_multiplier": 2,
+      "delta":5e-4,
+      "radius":1,
+      "counts":10
+    },
+
+    "postures": {
       "k1": 200,
       "candidates_multiplier": 2,
-      "energy_multiplier": 2
-    },
-    "postures": {
-      "k1": 100,
-      "candidates_multiplier": 1,
-      "energy_multiplier": 2
+      "energy_multiplier": 2,
+      "delta":1e-10,
+           "radius":1,
+      "counts":100
     },
     "celltypes": {
-      "k1": 400,
+      "k1": 100,
       "candidates_multiplier": 2,
-      "energy_multiplier": 2
+      "energy_multiplier": 2,
+      "delta":5e-4,
+      "radius":1,
+      "counts":10
     }
 }

@@ -206,7 +206,7 @@ def add_laplace_noise_vectorized(data, epsilon, sensitivity):
 #     nmi = round(normalized_mutual_info_score(label, arr), 4)
 #     return ari,nmi,[n_clusters, cnum, k]
     
-def nnfc_optimized(data_path, use_gpu=False, k1=None, k2=None,epsilon=None):
+def nnfc_optimized(data_path, use_gpu=False, k1=None, k2=None,epsilon=None,seed=None):
     """Optimized NNFC function with centroid label checking"""
     datapkl = load_dataset(data_path)
     data = np.array(datapkl['full_data'])
@@ -215,6 +215,9 @@ def nnfc_optimized(data_path, use_gpu=False, k1=None, k2=None,epsilon=None):
     corepoints = []
     client_data_indices = []  # To track which data points belong to each client
     start_idx = 0
+
+    np.random.seed(seed)
+
     
     # Process each client's data
     for i_client in range(10):
@@ -302,76 +305,60 @@ def nnfc_optimized(data_path, use_gpu=False, k1=None, k2=None,epsilon=None):
 
 def run_single_experiment(args):
     """Single experiment runner for multiprocessing"""
-    data_path, use_gpu, run_id,k1,k2,epsilon = args
-    return nnfc_optimized(data_path, use_gpu,k1,k2,epsilon)
-
-
-
-
-
-
-def run_experiments_parallel(data_path, n_runs=1000, n_processes=None, use_gpu=True, k1=None, k2=None, dataset=None,epsilon=None):
-    """Run experiments in parallel, optionally in batches (e.g., for 'mnist2')"""
-    if n_processes is None:
-        n_processes = min(mp.cpu_count(), 8)  # Limit to 8 processes max
     
-    print(f"Running {n_runs} experiments on {n_processes} cores...")
+    data_path, use_gpu, k1,k2,epsilon,seed = args
+    return nnfc_optimized(data_path, use_gpu,k1,k2,epsilon,seed)
 
-    results = []
-    start_time = time.time()
 
-    # Define batch size
-    if dataset == 'mnist':
-        print('yes')
-        batch_size = 5
-    else:
-        batch_size = n_runs  # run all at once
 
-    batches = (n_runs + batch_size - 1) // batch_size  # Ceiling division
 
-    run_counter = 0
-    for batch_idx in range(batches):
-        current_batch_size = min(batch_size, n_runs - run_counter)
-        args_list = [(data_path, use_gpu, run_counter + i, k1, k2,epsilon) for i in range(current_batch_size)]
-
-        with ProcessPoolExecutor(max_workers=n_processes) as executor:
-            future_to_run = {executor.submit(run_single_experiment, args): run_counter + i for i, args in enumerate(args_list)}
-
-            for future in as_completed(future_to_run):
-                run_id = future_to_run[future]
-                try:
-                    result = future.result()
-                    results.append(result)
-                    if len(results) % 100 == 0 or dataset in ['celltypes','covtype','postures','mnist','bot']:
-                        elapsed = time.time() - start_time
-                        print(f"Completed {len(results)}/{n_runs} runs in {elapsed:.1f}s")
-                except Exception as e:
-                    print(f"Run {run_id} failed: {e}")
-                    results.append((0, 0, [0, 0, 0]))
-
-        run_counter += current_batch_size
-
+def run_experiments_parallel(data_path, n_runs, n_processes, use_gpu, k1, k2, epsilon, seed):
+    """Run experiments in parallel across different random seeds"""
+    # Generate random seeds for experiments
+   
+    args_list = [(data_path, seed, k1, k2, epsilon,seed)]
+    
+    # Run experiments in parallel
+    with ProcessPoolExecutor(max_workers=n_processes) as executor:
+        results = list(executor.map(run_single_experiment, args_list))
+    
     return results
 
 
 
 
-def evaluate_with_seeds(data_path, use_gpu=True, n_runs=100, n_processes=None,k1=None,k2=None,dataset=None,seed=None,epsilon=None):
-    """Evaluate performance across 10 seeds"""
-    SEEDS = list(range(seed))
 
-    
+def evaluate_with_seeds(data_path, use_gpu=False, n_runs=1000, n_processes=None, k1=None, k2=None, seed=None, epsilon=None):
+    """Evaluate performance across multiple seeds"""
     seed_results = {'ari_max': [], 'nmi_max': []}
+    SEEDS = list(range(seed))
     
     for seed in SEEDS:
         print(f"\n--- Evaluating with seed={seed} ---")
-        results = run_experiments_parallel(data_path, n_runs, n_processes, use_gpu,k1,k2,dataset,epsilon)
-        ari_scores = [r[0] for r in results if r[0] > 0]
-        nmi_scores = [r[1] for r in results if r[1] > 0]
         
-        if ari_scores and nmi_scores:
+        # Set global seed for this iteration
+        np.random.seed(seed)
+    
+        
+        results = run_experiments_parallel(data_path, n_runs, n_processes, use_gpu, k1, k2, epsilon, seed)
+        
+        # Handle None/NaN/NA values by converting them to 0
+        ari_scores = [r[0] if r[0] is not None and not np.isnan(r[0]) else 0 for r in results]
+        nmi_scores = [r[1] if r[1] is not None and not np.isnan(r[1]) else 0 for r in results]
+        
+        # Only consider positive scores (if you still want this condition)
+        ari_scores = [score for score in ari_scores if score > 0]
+        nmi_scores = [score for score in nmi_scores if score > 0]
+        
+        if ari_scores:
             seed_results['ari_max'].append(max(ari_scores))
+        else:
+            seed_results['ari_max'].append(0)
+            
+        if nmi_scores:
             seed_results['nmi_max'].append(max(nmi_scores))
+        else:
+            seed_results['nmi_max'].append(0)
     
     # Calculate statistics
     ari_mean = np.mean(seed_results['ari_max'])
@@ -380,7 +367,7 @@ def evaluate_with_seeds(data_path, use_gpu=True, n_runs=100, n_processes=None,k1
     nmi_std = np.std(seed_results['nmi_max'])
     
     print("\n" + "="*50)
-    print("SEED EVALUATION RESULTS (10 seeds)")
+    print(f"SEED EVALUATION RESULTS ({len(SEEDS)} seeds)")
     print("="*50)
     print(f"ARI (max): {ari_mean:.4f} ± {ari_std:.4f}")
     print(f"NMI (max): {nmi_mean:.4f} ± {nmi_std:.4f}")
@@ -421,7 +408,7 @@ def run_experiment(datanames, seeds, n_runs, use_gpu,save_path,config_file):
         epsilon = config['epsilon']
         
         # Evaluate with 10 seeds
-        seed_results = evaluate_with_seeds(data_path, use_gpu, n_runs=n_runs, n_processes=n_processes,k1=k1,k2=k2,dataset=dataset,seed=seeds,epsilon=epsilon)
+        seed_results = evaluate_with_seeds(data_path, use_gpu, n_runs=n_runs, n_processes=n_processes,k1=k1,k2=k2,seed=seeds,epsilon=epsilon)
         
 
         # Save seed results

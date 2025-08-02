@@ -338,6 +338,7 @@ def run_single_experiment(args):
     try:
         # Load dataset according to your format
         datapkl = load_dataset(data_path)
+        true_labels = np.array(datapkl['true_label'])  # Original labels for full data
         
         # Extract data according to your structure
         # eachlable = datapkl['eachlable']
@@ -364,11 +365,27 @@ def run_single_experiment(args):
             
             x_fed.append(lodata_noisy)
         
+
+        serverdata = np.concatenate(x_fed, axis=0)
+        
+        # For the centroids' true labels, we need to assign them based on their closest true data points
+        centroid_true_labels = []
+        for centroid in serverdata:
+            # Find the closest original data point to this centroid
+            closest_idx = np.argmin(np.linalg.norm(data - centroid, axis=1))
+            centroid_true_labels.append(true_labels[closest_idx])
+        centroid_true_labels = np.array(centroid_true_labels)
+            
         print('Running federated k-means (kfed algorithm)')
         # Run federated k-means with your parameters
         # k1 is dev_k (clusters per device), k_true is final number of clusters
         local_estimates, final_centers = kfed(x_fed, k1, k_true, useSKLearn=True, sparse=False)
+
+        # Visualization with true labels
+        plot_clusters(serverdata, final_centers, energy=None, true_labels=centroid_true_labels)
+
         
+            
         print(f'Final centers shape: {final_centers.shape}')
         print(f'Full data shape: {data.shape}')
         
@@ -397,15 +414,112 @@ def run_single_experiment(args):
         import traceback
         traceback.print_exc()
         return 0.0, 0.0
+    
+
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import cm
+from scipy.interpolate import griddata
+
+def plot_clusters(data, synthetic_centroids, energy, true_labels=None, assignments=None):
+    """Visualize clusters in 2D or higher dimensions using t-SNE when needed"""
+    plt.figure(figsize=(8, 6))
+    
+    # Handle dimensionality
+    d = data.shape[1]
+    if d > 2:
+        from sklearn.manifold import TSNE
+        
+        # Combine data and centroids for consistent t-SNE projection
+        combined = np.vstack([data, synthetic_centroids])
+        
+        # Create t-SNE transformer (perplexity auto-adjusted)
+        perplex = min(30, combined.shape[0]-1)
+        tsne = TSNE(n_components=2, perplexity=perplex, random_state=42)
+        projected = tsne.fit_transform(combined)
+        
+        # Split back into data and centroids
+        data_2d = projected[:len(data)]
+        centroids_2d = projected[len(data):]
+        
+        plot_title = "t-SNE Projection of "
+    else:
+        data_2d = data
+        centroids_2d = synthetic_centroids
+        plot_title = ""
+
+    # Plot all points with true labels if available
+    if true_labels is not None:
+        unique_labels = np.unique(true_labels)
+        cmap = plt.cm.get_cmap('tab20', len(unique_labels))
+        
+        # Plot points with true labels
+        for i, label in enumerate(unique_labels):
+            mask = (true_labels == label)
+            plt.scatter(data_2d[mask, 0], data_2d[mask, 1], 
+                        color=cmap(i), alpha=0.6, s=30,
+                        label=f'True class {label}')
+    else:
+        # Only apply energy mask if the dimensions match
+        if len(energy) == len(data_2d):
+            # Calculate energy threshold
+            min_e, max_e = np.min(energy), np.max(energy)
+            threshold = min_e
+            high_energy_mask = energy > threshold
+            
+            # Plot all points (below threshold in blue)
+            plt.scatter(data_2d[~high_energy_mask, 0], data_2d[~high_energy_mask, 1], 
+                        c='lightblue', alpha=0.4, s=30, label='Below energy threshold')
+            
+            # Plot high-energy points (red)
+            plt.scatter(data_2d[high_energy_mask, 0], data_2d[high_energy_mask, 1], 
+                        c='red', alpha=0.6, s=30, label='Above energy threshold')
+        else:
+            # If dimensions don't match, just plot all points
+            plt.scatter(data_2d[:, 0], data_2d[:, 1], 
+                        c='blue', alpha=0.6, s=30, label='All points')
+    
+    # Plot cluster assignments if available and not all zeros
+    if assignments is not None and not np.all(assignments == 0) and len(assignments) == len(data_2d):
+        # Override colors for assigned points
+        scatter = plt.scatter(data_2d[:, 0], data_2d[:, 1], c=assignments, 
+                             cmap='tab20', alpha=0.7, s=30, label='Cluster assignments')
+        plt.colorbar(scatter, label='Cluster ID')
+    
+    # Plot synthetic centroids (large gold stars)
+    plt.scatter(centroids_2d[:, 0], centroids_2d[:, 1],
+                marker='*', s=400, c='gold', edgecolors='black',
+                linewidths=2, label='Synthetic Centroids', zorder=5)
+    
+    # Add numbering to centroids
+    for i, centroid in enumerate(centroids_2d):
+        plt.annotate(f'{i+1}', (centroid[0], centroid[1]), 
+                    xytext=(5, 5), textcoords='offset points',
+                    fontsize=12, fontweight='bold', color='black')
+    
+    title_suffix = "with True Labels" if true_labels is not None else ""
+    # plt.title(f"{plot_title}Synthetic Centroids {title_suffix}")
+    plt.xlabel('Component 1' if d > 2 else 'Feature 1')
+    plt.ylabel('Component 2' if d > 2 else 'Feature 2')
+    plt.legend(loc='lower right', framealpha=0.9)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
 
 
-def run_experiments_parallel(data_path, n_runs, n_processes, use_gpu, k1, k2,epsilon):
+
+
+
+
+
+def run_experiments_parallel(data_path, n_runs, n_processes, use_gpu, k1, k2,epsilon,seed):
     """Run experiments in parallel across different random seeds"""
     # Generate random seeds for experiments
-    seeds = np.random.randint(0, 10000, n_runs)
+
     
     # Prepare arguments for parallel processing
-    args_list = [(data_path, seed, k1, k2, use_gpu,epsilon) for seed in seeds]
+    args_list = [(data_path, seed, k1, k2, use_gpu,epsilon)]
     
     # Run experiments in parallel
     with ProcessPoolExecutor(max_workers=n_processes) as executor:
@@ -417,7 +531,7 @@ def run_experiments_parallel(data_path, n_runs, n_processes, use_gpu, k1, k2,eps
 
 
 
-def evaluate_with_seeds(data_path, use_gpu=False, n_runs=1000, n_processes=None, k1=None, k2=None,seed=None,epsilon=None):
+def evaluate_with_seeds(data_path, use_gpu=False, n_runs=1000, n_processes=None, k1=None, k2=None, seed=None, epsilon=None):
     """Evaluate performance across multiple seeds"""
     seed_results = {'ari_max': [], 'nmi_max': []}
     SEEDS = list(range(seed))
@@ -425,16 +539,28 @@ def evaluate_with_seeds(data_path, use_gpu=False, n_runs=1000, n_processes=None,
     for seed in SEEDS:
         print(f"\n--- Evaluating with seed={seed} ---")
         
-        # # Set global seed for this iteration
-        # np.random.seed(seed)
+        # Set global seed for this iteration
+        np.random.seed(seed)
         
-        results = run_experiments_parallel(data_path, n_runs, n_processes, use_gpu, k1, k2,epsilon)
-        ari_scores = [r[0] for r in results if r[0] > 0]
-        nmi_scores = [r[1] for r in results if r[1] > 0]
+        results = run_experiments_parallel(data_path, n_runs, n_processes, use_gpu, k1, k2, epsilon, seed)
         
-        if ari_scores and nmi_scores:
+        # Handle None/NaN/NA values by converting them to 0
+        ari_scores = [r[0] if r[0] is not None and not np.isnan(r[0]) else 0 for r in results]
+        nmi_scores = [r[1] if r[1] is not None and not np.isnan(r[1]) else 0 for r in results]
+        
+        # Only consider positive scores (if you still want this condition)
+        ari_scores = [score for score in ari_scores if score > 0]
+        nmi_scores = [score for score in nmi_scores if score > 0]
+        
+        if ari_scores:
             seed_results['ari_max'].append(max(ari_scores))
+        else:
+            seed_results['ari_max'].append(0)
+            
+        if nmi_scores:
             seed_results['nmi_max'].append(max(nmi_scores))
+        else:
+            seed_results['nmi_max'].append(0)
     
     # Calculate statistics
     ari_mean = np.mean(seed_results['ari_max'])
@@ -443,7 +569,7 @@ def evaluate_with_seeds(data_path, use_gpu=False, n_runs=1000, n_processes=None,
     nmi_std = np.std(seed_results['nmi_max'])
     
     print("\n" + "="*50)
-    print("SEED EVALUATION RESULTS (100 seeds)")
+    print(f"SEED EVALUATION RESULTS ({len(SEEDS)} seeds)")
     print("="*50)
     print(f"ARI (max): {ari_mean:.4f} ± {ari_std:.4f}")
     print(f"NMI (max): {nmi_mean:.4f} ± {nmi_std:.4f}")
@@ -452,6 +578,7 @@ def evaluate_with_seeds(data_path, use_gpu=False, n_runs=1000, n_processes=None,
 
 
 def run_experiment(datanames, seeds, n_runs, use_gpu,save_path,config_file):
+    
     """Updated main function"""
 
     config_path = config_file

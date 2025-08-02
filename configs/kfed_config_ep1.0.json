@@ -1,0 +1,20 @@
+{
+  "model": "kfed",
+  "datanames": ["abalone","waveform", "balancescale", "breast", "gesture", "heart", "seeds", "thyroid", "mnist2d", "postures", "celltypes"],
+  "seed": 20,
+  "n_runs": 1,
+  "epsilon":1,
+  "save_path": "paper/kfed_epsilon_1.txt",
+
+  "abalone": { "k1": 1, "k2": 20 },
+  "balancescale": { "k1": 1, "k2": 20 },
+  "breast": { "k1": 1, "k2": 20 },
+  "gesture": { "k1": 2, "k2": 20 },
+  "heart": { "k1": 2, "k2": 20 },
+  "seeds": { "k1": 1, "k2": 20 },
+  "thyroid": { "k1": 1, "k2": 20 },
+  "waveform": { "k1": 1, "k2": 20 },
+  "mnist2d": { "k1": 2, "k2": 20 },
+  "postures": { "k1": 2, "k2": 20 },
+  "celltypes": { "k1": 1, "k2": 20 }
+}
