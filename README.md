@@ -1,6 +1,12 @@
-# CFC Federated Clustering
+# Topological Federated Clustering via Gravitational Potential Fields (GFC)
 
-A collection of professional federated clustering algorithms implementing Constrained Federated Clustering (CFC) and other variants.
+🎉 **ACCEPTED AT AAAI 2026 MAIN TECHNICAL TRACK** 🎉
+
+**Topological Federated Clustering via Gravitational Potential Fields under Local Differential Privacy**
+
+📄 [**Paper**](https://arxiv.org/abs/placeholder) | 🌐 [**Project Page**](https://yunbo-max.github.io/GFC/) 
+
+A collection of professional federated clustering algorithms implementing Gravitational Federated Clustering (GFC) and related variants using gravitational potential fields for topological clustering under local differential privacy.
 
 ## Code Improvements Made
 
