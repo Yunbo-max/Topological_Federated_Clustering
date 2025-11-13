@@ -1,30 +1,18 @@
-# -*- coding: utf-8 -*-
-# @Author: Yunbo
-# @Date:   2023-10-12 16:43:39
-# @Last Modified by:   Yunbo
-# @Last Modified time: 2025-07-02 19:59:54
-#! /usr/bin/env python
-# -*- coding: utf-8 -*-
-
-#############################
-# This file implements customized K-means class.
-#############################
-
+"""
+Custom K-means clustering implementation with k-means++ initialization.
+Provides Lloyd's algorithm with enhanced initialization and unlearning capabilities.
+"""
 import numpy as np
 
 
 class MyKmeans(object):
-    """
-        In-house implementation of k-means via Lloyd's iterations
-    """
+    """K-means clustering with k-means++ initialization and Lloyd's iterations"""
 
     def __init__(self, k, termination='loss', max_iters=10, tol=1e-3):
-        # set parameters
         self.k = k
         self.max_iters = max_iters
         self.tol = tol
         self.termination = termination
-        # initialize placeholder values
         self._init_placeholders()
 
     def _init_placeholders(self):
@@ -43,42 +31,28 @@ class MyKmeans(object):
         return self.centroids, self.assignments, self.loss
 
     def run(self, X, pre_init=False):
-        """
-            Full K-means clustering algorithm
-            input:
-                X: numpy matrix, n-by-d, each row is a data point
-            output:
-                centroids: k-by-d matrix of centroids
-                assignments: vector of length n, with datapoint to center assignments
-                loss: the loss of the final partition
-        """
+        """Full k-means clustering algorithm with Lloyd's iterations"""
         self._set_data(X)
         self._lloyd_iterations(pre_init)
         return self.centroids, self.assignments, self.loss
 
     def unlearn_check(self, del_idx):
-        """
-            Check if del_idx is in self.kpp_inits. If yes we need to retrain the model, if no
-            we need to delete the data
-            Return:
-                True: need retrain / False: does not need retrain
-        """
-        assert len(
-            self.kpp_inits) == self.k, "number of centroids is less than K"
+        """Check if deletion requires retraining or just data removal"""
+        assert len(self.kpp_inits) == self.k, "number of centroids is less than K"
         if del_idx in self.kpp_inits:
             return True
-        # update the index in self.kpp_inits
+        
+        # Update indices and remove data point
         for k_val in range(self.k):
             if self.kpp_inits[k_val] > del_idx:
                 self.kpp_inits[k_val] -= 1
         self.n -= 1
-        # update the loss
-        tmp_norm = np.linalg.norm(self.data[del_idx, :] -
+        
+        # Update loss and remove data
+        tmp_norm = np.linalg.norm(self.data[del_idx, :] - 
                                   self.centroids[self.assignments[del_idx], :])
         self.loss -= tmp_norm**2
-        # delete data
         self.data = np.delete(self.data, del_idx, 0)
-        # update the assignment vector
         self.assignments = np.delete(self.assignments, del_idx)
         return False
 
@@ -111,9 +85,7 @@ class MyKmeans(object):
             return False
 
     def _init_centroids(self):
-        """
-            K-means++ initialization
-        """
+        """K-means++ initialization for better centroid selection"""
         first_idx = np.random.choice(self.n)
         self.kpp_inits.append(first_idx)
         self.centroids = self.data[first_idx, :]
@@ -125,14 +97,9 @@ class MyKmeans(object):
             self.centroids = np.vstack([self.centroids, self.data[nxt_idx, :]])
 
     def _get_selection_prob(self):
-        """
-            Outputs vector of selection probabilites
-            Equal to Distance^2 to nearest centroid
-        """
-        # handle edge case in centroids shape by unsqueezing
+        """Compute selection probabilities based on squared distances to nearest centroid"""
         if len(self.centroids.shape) == 1:
             self.centroids = np.expand_dims(self.centroids, axis=0)
-        # probability is square distance to closest centroid
         D = np.zeros([self.n])
         for i in range(self.n):
             d = np.linalg.norm(self.data[i, :] - self.centroids, axis=1)
@@ -142,12 +109,9 @@ class MyKmeans(object):
         return P
 
     def _assign_centroids(self):
-        """
-            Computes centroids in Lloyd iterations
-        """
+        """Update centroids based on current cluster assignments"""
         self.centroids = np.zeros([self.k, self.d])
-        # c record the cluster sizes, used for normalizing the centroids
-        c = np.zeros([self.k])
+        c = np.zeros([self.k])  # Cluster sizes for normalization
         for i in range(self.n):
             a = self.assignments[i]
             c[a] += 1
@@ -162,27 +126,18 @@ class MyKmeans(object):
         self.empty_clusters = []
 
     def _assign_clusters(self):
-        """
-            Computes clusters in Lloyd iterations
-        """
+        """Assign data points to nearest centroids"""
         assert (self.k, self.d) == self.centroids.shape, "Centers wrong shape"
         self.assignments = np.zeros([self.n]).astype(int)
         self.loss = 0
         for i in range(self.n):
             d = np.linalg.norm(self.data[i, :] - self.centroids, axis=1)
-            # d1 is for l1 norm, which will not be used in our case
-            # d1 = np.linalg.norm(self.data[i,:] - self.centroids, axis=1, ord=1)
             self.assignments[i] = int(np.argmin(d))
             self.loss += np.min(d)**2
-        # k-means does not have normalization
-        # self.loss = self.loss / self.n
         self.empty_clusters = self._check_4_empty_clusters()
 
     def _check_4_empty_clusters(self):
-        """
-            Check for empty cluster in self.assignments
-            Should not happen in practice
-        """
+        """Check for empty clusters in assignments"""
         empty_clusters = []
         for kappa in range(self.k):
             if len(np.where(self.assignments == kappa)[0]) == 0:
@@ -190,16 +145,7 @@ class MyKmeans(object):
         return empty_clusters
 
     def _reinit_cluster(self, j):
-        """
-            This function should never be called
-            Gets a failed centroid with idx j (empty cluster)
-            Should replace with new K-means++ init centroid
-            in:
-                j is idx for centroid, 0 <= j <= n
-            out:
-                j_prime is idx for next centroid
-        """
-        # raise Exception("Empty cluster appears!")
+        """Reinitialize empty cluster using k-means++ selection"""
         P = self._get_selection_prob()
         j_prime = np.random.choice(self.n, p=P)
         if j_prime not in self.kpp_inits:

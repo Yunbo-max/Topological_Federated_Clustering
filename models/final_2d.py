@@ -1,33 +1,39 @@
-# -*- coding: utf-8 -*-
-# @Author: Yunbo
-# @Date:   2025-06-02 17:55:49
-# @Last Modified by:   Yunbo
-# @Last Modified time: 2025-07-05 22:37:23
-import umap
-import json
-import os
-from scipy.spatial.distance import pdist, squareform, cdist
-# Optimized version with multi-processing and GPU acceleration support
+"""
+Final 2D Federated Clustering Implementation
+Optimized clustering for 2D datasets with enhanced visualization capabilities.
+"""
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.cluster import KMeans
-import json
-import pickle
-import math
-import os
-from sklearn.cluster import DBSCAN
-import random
-from sklearn.metrics import silhouette_score, adjusted_rand_score, normalized_mutual_info_score
-from sklearn.metrics import adjusted_mutual_info_score
-from typing import List, Tuple
-from scipy.spatial.distance import pdist, squareform
-from sklearn.metrics.pairwise import euclidean_distances, cosine_distances
-import multiprocessing as mp
-from functools import partial
-import time
+from matplotlib.colors import LogNorm
+from matplotlib.patches import Patch
+from sklearn.cluster import KMeans, DBSCAN
+from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
+from sklearn.neighbors import KernelDensity, NearestNeighbors
+from scipy.spatial.distance import pdist, squareform, cdist
+from scipy.ndimage import label
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from collections import defaultdict
+from typing import List, Tuple
+import multiprocessing as mp
+import pickle
+import json
+import time
+import os
 import warnings
 warnings.filterwarnings('ignore')
+
+# Optional dependencies
+try:
+    from anytree import Node, RenderTree
+    TREE_VIZ_AVAILABLE = True
+except ImportError:
+    TREE_VIZ_AVAILABLE = False
+
+try:
+    import umap
+    UMAP_AVAILABLE = True
+except ImportError:
+    UMAP_AVAILABLE = False
 
 # Try to use GPU acceleration if available
 

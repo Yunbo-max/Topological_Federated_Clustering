@@ -1,45 +1,31 @@
-# -*- coding: utf-8 -*-
-# @Author: Yunbo
-# @Date:   2025-06-02 17:55:49
-# @Last Modified by:   Yunbo
-# @Last Modified time: 2025-07-04 13:04:33
-
-# Optimized version with multi-processing and GPU acceleration support
-
-import time
+"""
+Neural Network Federated Clustering (NNFC) Implementation
+Optimized federated clustering with multi-processing and optional GPU acceleration.
+"""
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, DBSCAN
+from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
+from scipy.spatial.distance import pdist, squareform
+from sklearn.metrics.pairwise import euclidean_distances
+from typing import Tuple
+import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import json
 import pickle
-import math
-import os
-from sklearn.cluster import DBSCAN
-import random
-from sklearn.metrics import silhouette_score, adjusted_rand_score, normalized_mutual_info_score
-from sklearn.metrics import adjusted_mutual_info_score
-from typing import List, Tuple
-from scipy.spatial.distance import pdist, squareform
-from sklearn.metrics.pairwise import euclidean_distances, cosine_distances
-import multiprocessing as mp
-from functools import partial
 import time
-import json
 import os
-from concurrent.futures import ProcessPoolExecutor, as_completed
 import warnings
 warnings.filterwarnings('ignore')
 
-# Try to use GPU acceleration if available
+# Optional GPU acceleration
 try:
     import cupy as cp
     import cuml
     from cuml.cluster import KMeans as cuKMeans
     GPU_AVAILABLE = True
-    # print("GPU acceleration available!")
 except ImportError:
     GPU_AVAILABLE = False
-    # print("GPU acceleration not available, using CPU")
 
 def load_dataset(filepath):
     """Load dataset from pickle file"""

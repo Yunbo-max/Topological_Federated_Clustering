@@ -1,15 +1,7 @@
-# -*- coding: utf-8 -*-
-# @Author: Yunbo
-# @Date:   2023-10-12 16:43:39
-# @Last Modified by:   Yunbo
-# @Last Modified time: 2025-07-02 19:57:52
-#! /usr/bin/env python
-# -*- coding: utf-8 -*-
-
-#############################
-# utils files.
-#############################
-
+"""
+Utility functions for federated clustering algorithms.
+Provides common functions for data loading, sampling, and clustering metrics.
+"""
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
@@ -19,22 +11,14 @@ import math
 
 
 def load_dataset(filepath):
-    """
-        Return:
-            dataset: dict
-    """
+    """Load dataset from pickle file"""
     with open(filepath, 'rb') as fr:
         dataset = pickle.load(fr)
     return dataset
 
 
 def sample_points_in_bin(bin_mid, total_points, quant_eps):
-    """
-        Input:
-            bin_mid: numpy.array (d,)
-            total_points: points needed to be generated
-            quant_eps: quantization region length
-    """
+    """Sample points uniformly within a quantization bin"""
     sampled_shifts = np.random.uniform(-quant_eps / 2.0,
                                        quant_eps / 2.0,
                                        size=[total_points, bin_mid.size])
@@ -43,12 +27,7 @@ def sample_points_in_bin(bin_mid, total_points, quant_eps):
 
 
 def clustering_loss(data, centroids):
-    """
-        Computes the clustering loss on a dataset given a fixed set of centroids
-        Input:
-            centroids: numpy.array (k,d)
-            data: numpy.array (n,d)
-    """
+    """Compute clustering loss (sum of squared distances to nearest centroids)"""
     loss = 0.0
     for i_data in range(data.shape[0]):
         d = np.linalg.norm(data[i_data, :] - centroids, axis=1)
@@ -57,13 +36,7 @@ def clustering_loss(data, centroids):
 
 
 def induced_loss(data, centroids, assignments):
-    """
-        Compute the loss based on the induced clustering results
-        Input:
-            centroids: numpy.array (k,d)
-            data: numpy.array (n,d)
-            assignments: numpy.array (n,). Values are between [0,k-1]
-    """
+    """Compute loss based on induced clustering assignments"""
     loss = 0.0
     for i_data in range(data.shape[0]):
         d = np.linalg.norm(data[i_data, :] - centroids[assignments[i_data], :])
@@ -72,13 +45,7 @@ def induced_loss(data, centroids, assignments):
 
 
 def induced_loss_return_max(data, centroids, assignments):
-    """
-        Compute the loss based on the induced clustering results
-        Input:
-            centroids: numpy.array (k,d)
-            data: numpy.array (n,d)
-            assignments: numpy.array (n,). Values are between [0,k-1]
-    """
+    """Compute loss and return the point with maximum distance to its centroid"""
     loss = 0.0
     argmax_idx = -1
     max_loss = -1
@@ -91,50 +58,40 @@ def induced_loss_return_max(data, centroids, assignments):
     return loss, argmax_idx
 
 
-def split_data(data_combined,
-               num_clusters,
-               num_clients=None,
-               split='iid',
-               k_prime=None):
+def split_data(data_combined, num_clusters, num_clients=None, split='iid', k_prime=None):
+    """Split data across clients with IID or non-IID distribution"""
     json_data = {}
-    # K-means optimal loss
+    
+    # Compute K-means baseline
     clf = KMeans(n_clusters=num_clusters).fit(data_combined)
     kmeans_loss = clf.inertia_
     kmeans_label = clf.labels_
     json_data['kmeans_loss'] = kmeans_loss
 
     if num_clients is None:
-        num_clients = int(
-            data_combined.shape[0] /
-            100)  # make sure each client does not have too much data
+        num_clients = int(data_combined.shape[0] / 100)
 
-    # initialize for each client
+    # Initialize client data storage
     for i in range(num_clients):
         json_data['client_' + str(i)] = []
 
-    # iid split
     if split == 'iid':
         for k in range(num_clusters):
             data_cluster = data_combined[kmeans_label == k, :]
             size_per_client = math.floor(data_cluster.shape[0] / num_clients)
             for i in range(num_clients - 1):
                 json_data['client_' + str(i)].append(
-                    data_cluster[i * size_per_client:(i + 1) *
-                                 size_per_client, :])
-            # fill the rest into the last client
+                    data_cluster[i * size_per_client:(i + 1) * size_per_client, :])
             json_data['client_' + str(num_clients - 1)].append(
                 data_cluster[(num_clients - 1) * size_per_client:, :])
 
+        # Concatenate data for all clients
         tmp_count = 0
-        # concatenate the data for all clients
         for i in range(num_clients):
-            json_data['client_' + str(i)] = np.concatenate(
-                json_data['client_' + str(i)], axis=0)
+            json_data['client_' + str(i)] = np.concatenate(json_data['client_' + str(i)], axis=0)
             tmp_count += json_data['client_' + str(i)].shape[0]
-        # have a final check on the sizes
-        assert tmp_count == data_combined.shape[
-            0], "Error: data size does not match"
-    # non-iid split
+        assert tmp_count == data_combined.shape[0], "Error: data size does not match"
+        
     elif split == 'non-iid':
         if k_prime is None:
             k_prime = int(num_clusters / 2)
@@ -203,20 +160,13 @@ def split_data(data_combined,
     return json_data
 
 
-def generate_data(data_input,
-                  num_clusters,
-                  save_flag=True,
-                  filename='processed_data.pkl',
-                  num_clients=None,
-                  split='iid',
-                  k_prime=None):
-    """
-        Process, split and save data into .pkl files
-    """
+def generate_data(data_input, num_clusters, save_flag=True, filename='processed_data.pkl',
+                  num_clients=None, split='iid', k_prime=None):
+    """Process, split and save data into pickle files"""
     json_data = {}
     json_data['full_data'] = data_input
     
-    # normalize each dimension
+    # Normalize data
     data_max = json_data['full_data'].max()
     if data_max > 1:
         json_data['full_data'] = json_data['full_data'] / float(data_max)
@@ -224,9 +174,8 @@ def generate_data(data_input,
     json_data['num_clusters'] = num_clusters
     split_json = split_data(json_data['full_data'], num_clusters, num_clients, split, k_prime)
     json_data.update(split_json)
-    print("data processed!")
+    print("Data processed successfully!")
     
     if save_flag:
-        # save the data to file
         with open(filename, "wb") as fw:
             pickle.dump(json_data, fw)

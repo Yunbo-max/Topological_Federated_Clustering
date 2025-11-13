@@ -1,36 +1,24 @@
-# -*- coding: utf-8 -*-
-# @Author: Yunbo
-# @Date:   2025-06-02 17:55:49
-# @Last Modified by:   Yunbo
-# @Last Modified time: 2025-07-05 22:37:23
-import umap
-import time
-import json
-import os
-from scipy.spatial.distance import pdist, squareform, cdist
-# Optimized version with multi-processing and GPU acceleration support
+"""
+Final Federated Clustering Implementation
+Advanced federated clustering with multi-dimensional support and optimization.
+"""
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.cluster import KMeans
-import json
-import pickle
-import math
-import os
-from sklearn.cluster import DBSCAN
-import random
-from sklearn.metrics import silhouette_score, adjusted_rand_score, normalized_mutual_info_score
-from sklearn.metrics import adjusted_mutual_info_score
-from typing import List, Tuple
-from scipy.spatial.distance import pdist, squareform
-from sklearn.metrics.pairwise import euclidean_distances, cosine_distances
-import multiprocessing as mp
-from functools import partial
-import time
+from matplotlib.colors import LogNorm
+from matplotlib.patches import Patch
+from sklearn.cluster import KMeans, DBSCAN
+from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
+from sklearn.neighbors import KernelDensity
+from scipy.spatial.distance import pdist, squareform, cdist
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from typing import List, Tuple
+import multiprocessing as mp
+import pickle
+import json
+import time
+import os
 import warnings
 warnings.filterwarnings('ignore')
-
-# Try to use GPU acceleration if available
 
 
 def load_dataset(filepath):
