@@ -1,24 +1,38 @@
-"""
-Final Federated Clustering Implementation
-Advanced federated clustering with multi-dimensional support and optimization.
-"""
+# -*- coding: utf-8 -*-
+# @Author: Yunbo
+# @Date:   2025-06-02 17:55:49
+# @Last Modified by:   Yunbo
+# @Last Modified time: 2025-07-05 22:37:23
+import umap
+import time
+import json
+import os
+from scipy.spatial.distance import pdist, squareform, cdist
+# Optimized version with multi-processing and GPU acceleration support
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm
-from matplotlib.patches import Patch
-from sklearn.cluster import KMeans, DBSCAN
-from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
-from sklearn.neighbors import KernelDensity
-from scipy.spatial.distance import pdist, squareform, cdist
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from typing import List, Tuple
-import multiprocessing as mp
-import pickle
+from sklearn.cluster import KMeans
 import json
-import time
+import pickle
+import math
 import os
+from sklearn.cluster import DBSCAN
+import random
+from sklearn.metrics import silhouette_score, adjusted_rand_score, normalized_mutual_info_score
+from sklearn.metrics import adjusted_mutual_info_score
+from typing import List, Tuple
+from scipy.spatial.distance import pdist, squareform
+from sklearn.metrics.pairwise import euclidean_distances, cosine_distances
+import multiprocessing as mp
+from functools import partial
+import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import warnings
 warnings.filterwarnings('ignore')
+from matplotlib.patches import Patch
+from matplotlib.colors import LogNorm
+
+# Try to use GPU acceleration if available
 
 
 def load_dataset(filepath):
@@ -575,6 +589,24 @@ def penalized_energy_centroids(data, nc,all_masses, candidates_multiplier, energ
             'splits': split_info
         }
         
+        # Save animation frames (only for 2D data and sample frames for smooth animation)
+        if synthetic_candidates.shape[1] == 2:
+            # Create frames much less frequently - 100x bigger step size
+            step_size = 1000 if len(thresholds) > 20000 else 2000  # 100x bigger than before
+            if i % step_size == 0 or i == len(thresholds) - 1:  # Always include the last frame
+                # Create frames for all four animation types
+                plot_contour_layers_animation(synthetic_candidates, total_energy, active_mask, 
+                                            threshold, i, output_dir="frames_contour")
+                
+                plot_energy_heatmap_animation(synthetic_candidates, total_energy, active_mask,
+                                            threshold, i, output_dir="frames_heatmap")
+                
+                plot_energy_3d_animation(synthetic_candidates, total_energy, active_mask,
+                                       threshold, i, output_dir="frames_3d")
+                
+                plot_region_splits_animation(coords_2d, current_labels, active_mask,
+                                           threshold, i, split_info, output_dir="frames_regions")
+        
         # # Visualize every 100 steps
         # if i % 100 == 0:
         #     plot_region_splits(
@@ -711,6 +743,21 @@ def penalized_energy_centroids(data, nc,all_masses, candidates_multiplier, energ
             else:
                 syn_centroids = np.concatenate([syn_centroids, ranked_candidates[:remaining]])
 
+    # Create GIFs from saved animation frames (only for 2D data)
+    if synthetic_candidates.shape[1] == 2:
+        print("Creating animation GIFs...")
+        
+        # Create four different animation GIFs
+        create_gif_from_frames(frames_dir="frames_contour", output_gif="contour_animation.gif", duration=200)
+        create_gif_from_frames(frames_dir="frames_heatmap", output_gif="heatmap_animation.gif", duration=200)
+        create_gif_from_frames(frames_dir="frames_3d", output_gif="energy3d_animation.gif", duration=200)
+        create_gif_from_frames(frames_dir="frames_regions", output_gif="clusters_animation.gif", duration=200)
+        
+        print("✅ Created 4 animation GIFs:")
+        print("  - contour_animation.gif (3D contour layers)")
+        print("  - heatmap_animation.gif (2D energy heatmap)")
+        print("  - energy3d_animation.gif (3D energy surface)")
+        print("  - clusters_animation.gif (region evolution)")
 
     return syn_centroids,None,total_energy,synthetic_candidates
 
@@ -902,6 +949,238 @@ def plot_contour_layers(candidate_points, total_energy):
     # Adjust subplot parameters to prevent overlap
     plt.subplots_adjust(right=0.85, bottom=0.15)
     plt.show()
+
+
+def plot_contour_layers_animation(candidate_points, total_energy, active_mask, threshold, frame_num, output_dir="frames"):
+    """
+    Plot contour layers for animation - saves frame instead of showing
+    
+    Parameters:
+    - candidate_points: 2D array of candidate points (shape Nx2)
+    - total_energy: 1D array of energy values (shape N,)
+    - active_mask: Boolean mask for active points at current threshold
+    - threshold: Current energy threshold
+    - frame_num: Frame number for filename
+    - output_dir: Directory to save frames
+    """
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Only plot points above threshold
+    active_points = candidate_points[active_mask]
+    active_energy = total_energy[active_mask]
+    
+    if len(active_points) == 0:
+        return
+    
+    # Create grid interpolation
+    xi = np.linspace(min(candidate_points[:,0]), max(candidate_points[:,0]), 200)
+    yi = np.linspace(min(candidate_points[:,1]), max(candidate_points[:,1]), 200)
+    zi = griddata(candidate_points, total_energy, (xi[None,:], yi[:,None]), method='cubic')
+    
+    # Calculate layer heights based on current threshold
+    min_e, max_e = np.nanmin(zi), np.nanmax(zi)
+    current_threshold_norm = (threshold - min_e) / (max_e - min_e) if max_e > min_e else 0.5
+    
+    # Create levels around current threshold
+    level_percentages = [max(0.1, current_threshold_norm - 0.2), 
+                        current_threshold_norm, 
+                        min(0.9, current_threshold_norm + 0.2)]
+    levels = [min_e + (max_e-min_e)*h for h in level_percentages]
+    
+    # Apply vertical scaling
+    vertical_scale = 3.0
+    scaled_levels = [min_e + (l-min_e)*vertical_scale for l in levels]
+    
+    # Create figure
+    fig = plt.figure(figsize=(12, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    ax.set_box_aspect([4, 4, 3])
+    
+    # Colors for planes
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c']
+    
+    # Plot grid surface (faded)
+    X, Y = np.meshgrid(xi, yi)
+    ax.plot_surface(X, Y, zi, alpha=0.1, cmap='viridis')
+    
+    # Plot active points as scatter
+    if len(active_points) > 0:
+        ax.scatter(active_points[:,0], active_points[:,1], active_energy,
+                  c=active_energy, cmap='plasma', s=50, alpha=0.8)
+    
+    # Plot threshold planes
+    for i, (level, color) in enumerate(zip(scaled_levels, colors)):
+        alpha_val = 0.8 if i == 1 else 0.4  # Highlight current threshold level
+        ax.plot_surface(X, Y, np.full_like(X, level), 
+                       color=color, alpha=alpha_val, shade=False)
+        
+        # Add contour lines
+        cs = ax.contour(X, Y, zi, levels=[levels[i]], 
+                       colors=[color], linestyles='solid', linewidths=2,
+                       offset=level)
+    
+    # Styling
+    ax.set_xlabel('Dimension 1', fontsize=16)
+    ax.set_ylabel('Dimension 2', fontsize=16) 
+    ax.set_zlabel('Energy Level', fontsize=16)
+    ax.set_title(f'Energy Evolution - Frame {frame_num}\nThreshold: {threshold:.4f}, Active Points: {len(active_points)}', 
+                 fontsize=14, pad=20)
+    
+    ax.view_init(elev=35, azim=-45)
+    
+    # Save frame
+    plt.tight_layout()
+    plt.savefig(f'{output_dir}/frame_{frame_num:04d}.png', dpi=100, bbox_inches='tight')
+    plt.close()  # Important: close figure to prevent memory leaks
+
+
+def plot_energy_heatmap_animation(candidate_points, total_energy, active_mask, threshold, frame_num, output_dir="frames_heatmap"):
+    """Create animated energy heatmap frames"""
+    os.makedirs(output_dir, exist_ok=True)
+    
+    if len(candidate_points) == 0:
+        return
+        
+    plt.figure(figsize=(10, 8))
+    
+    # Plot all candidates with energy colors
+    sc = plt.scatter(candidate_points[:, 0], candidate_points[:, 1], 
+                    c=total_energy, cmap='viridis', s=50, alpha=0.7)
+    
+    # Highlight active points
+    if np.any(active_mask):
+        active_points = candidate_points[active_mask]
+        plt.scatter(active_points[:, 0], active_points[:, 1], 
+                   c='red', s=100, marker='x', alpha=0.8, linewidth=2)
+    
+    plt.colorbar(sc, label='Energy Level')
+    plt.title(f'Energy Heatmap - Frame {frame_num}\nThreshold: {threshold:.4f}, Active Points: {np.sum(active_mask)}', 
+              fontsize=14)
+    plt.xlabel('Dimension 1', fontsize=12)
+    plt.ylabel('Dimension 2', fontsize=12)
+    plt.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig(f'{output_dir}/frame_{frame_num:04d}.png', dpi=100, bbox_inches='tight')
+    plt.close()
+
+
+def plot_energy_3d_animation(candidate_points, total_energy, active_mask, threshold, frame_num, output_dir="frames_3d"):
+    """Create animated 3D energy surface frames"""
+    os.makedirs(output_dir, exist_ok=True)
+    
+    if len(candidate_points) == 0:
+        return
+    
+    from scipy.interpolate import griddata
+    
+    fig = plt.figure(figsize=(12, 8))
+    ax = fig.add_subplot(111, projection='3d')
+    
+    # Create grid for surface
+    xi = np.linspace(min(candidate_points[:,0]), max(candidate_points[:,0]), 50)
+    yi = np.linspace(min(candidate_points[:,1]), max(candidate_points[:,1]), 50)
+    zi = griddata(candidate_points, total_energy, (xi[None,:], yi[:,None]), method='linear')
+    
+    X, Y = np.meshgrid(xi, yi)
+    
+    # Plot surface
+    surf = ax.plot_surface(X, Y, zi, cmap='viridis', alpha=0.7)
+    
+    # Plot active points
+    if np.any(active_mask):
+        active_points = candidate_points[active_mask]
+        active_energy = total_energy[active_mask]
+        ax.scatter(active_points[:,0], active_points[:,1], active_energy,
+                  c='red', s=50, alpha=0.9)
+    
+    # Add threshold plane
+    threshold_z = np.full_like(X, threshold)
+    ax.plot_surface(X, Y, threshold_z, color='red', alpha=0.3)
+    
+    ax.set_xlabel('Dimension 1', fontsize=12)
+    ax.set_ylabel('Dimension 2', fontsize=12) 
+    ax.set_zlabel('Energy Level', fontsize=12)
+    ax.set_title(f'3D Energy Surface - Frame {frame_num}\nThreshold: {threshold:.4f}', fontsize=14)
+    ax.view_init(elev=30, azim=45)
+    
+    plt.tight_layout()
+    plt.savefig(f'{output_dir}/frame_{frame_num:04d}.png', dpi=100, bbox_inches='tight')
+    plt.close()
+
+
+def plot_region_splits_animation(coords_2d, labels, active_mask, threshold, frame_num, split_info, output_dir="frames_regions"):
+    """Create animated region splits frames"""
+    os.makedirs(output_dir, exist_ok=True)
+    
+    plt.figure(figsize=(12, 8))
+    
+    # Plot all points (inactive as gray)
+    plt.scatter(coords_2d[~active_mask, 0], coords_2d[~active_mask, 1], 
+                c='gray', alpha=0.2, s=20, label='Inactive')
+    
+    # Plot active regions with different colors
+    unique_labels = np.unique(labels[active_mask])
+    if len(unique_labels) > 0:
+        colors = plt.cm.tab20(np.linspace(0, 1, len(unique_labels)))
+        
+        for label, color in zip(unique_labels, colors):
+            if label == 0: continue
+            mask = (labels == label) & active_mask
+            if np.any(mask):
+                plt.scatter(coords_2d[mask, 0], coords_2d[mask, 1],
+                           c=[color], s=50, alpha=0.8,
+                           label=f'Region {label}')
+    
+    plt.title(f'Region Evolution - Frame {frame_num}\nThreshold: {threshold:.4f}, Regions: {len(unique_labels)-1}', 
+              fontsize=14)
+    plt.xlabel('Dimension 1', fontsize=12)
+    plt.ylabel('Dimension 2', fontsize=12)
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    
+    plt.tight_layout()
+    plt.savefig(f'{output_dir}/frame_{frame_num:04d}.png', dpi=100, bbox_inches='tight')
+    plt.close()
+
+
+def create_gif_from_frames(frames_dir="frames", output_gif="energy_evolution.gif", duration=200):
+    """
+    Create GIF from saved frames
+    
+    Parameters:
+    - frames_dir: Directory containing frame images
+    - output_gif: Output GIF filename
+    - duration: Duration per frame in milliseconds
+    """
+    try:
+        from PIL import Image
+        import glob
+        
+        # Get all frame files
+        frame_files = sorted(glob.glob(f'{frames_dir}/frame_*.png'))
+        
+        if not frame_files:
+            print(f"No frame files found in {frames_dir}")
+            return
+        
+        # Load images
+        images = []
+        for filename in frame_files:
+            img = Image.open(filename)
+            images.append(img)
+        
+        # Save as GIF
+        if images:
+            images[0].save(output_gif, save_all=True, append_images=images[1:], 
+                          duration=duration, loop=0)
+            print(f"GIF saved as {output_gif}")
+            print(f"Created from {len(images)} frames")
+        
+    except ImportError:
+        print("PIL (Pillow) not found. Install with: pip install Pillow")
+    except Exception as e:
+        print(f"Error creating GIF: {e}")
 
 
 def plot_clusters(data, synthetic_centroids, energy, true_labels=None, assignments=None):

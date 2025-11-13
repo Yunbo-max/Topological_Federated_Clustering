@@ -1,7 +1,10 @@
-"""
-K-means Federated Clustering (KFed) Implementation
-Federated clustering using k-means with sparse matrix support.
-"""
+# # -*- coding: utf-8 -*-
+# # @Author: Yunbo
+# # @Date:   2025-07-02 18:07:05
+# # @Last Modified by:   Yunbo
+# # @Last Modified time: 2025-07-04 00:29:08
+
+import time
 import numpy as np
 import scipy
 import scipy.sparse as sps
@@ -10,16 +13,16 @@ from sklearn.metrics import pairwise_distances as sparse_cdist
 from sklearn.utils.extmath import randomized_svd
 from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
 from sklearn.metrics.pairwise import euclidean_distances
+import pickle
+import os
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor
-import pickle
-import json
-import time
-import os
 import warnings
+import json
+import os
 warnings.filterwarnings('ignore')
 
-# Optional GPU support
+# Try to import GPU libraries
 try:
     import cupy as cp
     import cuml
@@ -28,7 +31,13 @@ except ImportError:
     GPU_AVAILABLE = False
 
 def distance_to_set(A, S, sparse=False):
-    """Compute minimum distance from each point in A to the set S"""
+    '''
+    S is a list of points. Distance to set is the minimum distance of $x$ to
+    points in $S$. In this case, this is computed for each row of $A$.  Note
+    that this works with sparse matrices (sparse=True)
+
+    Returns a single array of length len(A) containing corresponding distances.
+    '''
     n, d = A.shape
     assert S.ndim == 2
     assert S.shape[1] == d, S.shape[1]

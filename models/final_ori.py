@@ -1,33 +1,33 @@
-"""
-Final Original Federated Clustering Implementation
-Advanced clustering with tree-based region tracking and mass-weighted energy calculations.
-"""
+# -*- coding: utf-8 -*-
+# @Author: Yunbo
+# @Date:   2025-06-02 17:55:49
+# @Last Modified by:   Yunbo
+# @Last Modified time: 2025-07-05 22:37:23
+import umap
+import json
+import os
+from scipy.spatial.distance import pdist, squareform, cdist
+# Optimized version with multi-processing and GPU acceleration support
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm
-from matplotlib.patches import Patch
-from sklearn.cluster import KMeans, DBSCAN
-from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
-from sklearn.neighbors import KernelDensity, NearestNeighbors
-from scipy.spatial.distance import pdist, squareform, cdist
-from scipy.ndimage import label
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from collections import defaultdict
-from typing import List, Tuple
-import multiprocessing as mp
-import pickle
+from sklearn.cluster import KMeans
 import json
-import time
+import pickle
+import math
 import os
+from sklearn.cluster import DBSCAN
+import random
+from sklearn.metrics import silhouette_score, adjusted_rand_score, normalized_mutual_info_score
+from sklearn.metrics import adjusted_mutual_info_score
+from typing import List, Tuple
+from scipy.spatial.distance import pdist, squareform
+from sklearn.metrics.pairwise import euclidean_distances, cosine_distances
+import multiprocessing as mp
+from functools import partial
+import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import warnings
 warnings.filterwarnings('ignore')
-
-# Optional dependencies for tree visualization
-try:
-    from anytree import Node, RenderTree
-    TREE_VIZ_AVAILABLE = True
-except ImportError:
-    TREE_VIZ_AVAILABLE = False
 
 # Try to use GPU acceleration if available
 
@@ -228,22 +228,33 @@ def plot_region_tree(root):
 
 
 def plot_energy_heatmap(data, candidate_energy, synthetic_candidates):
-    """Plot candidate energies as a heatmap visualization"""
-    plt.figure(figsize=(10, 8))
-    
-    plt.scatter(data[:, 0], data[:, 1], c='blue', s=10, label='Original Data')
-    
-    sc = plt.scatter(synthetic_candidates[:, 0], synthetic_candidates[:, 1], 
-                    c=candidate_energy, cmap='viridis', s=50, 
-                    label='Synthetic Candidates')
-    
-    plt.colorbar(sc, label='Candidate Energy')
-    plt.title('Candidate Energy Heatmap')
-    plt.xlabel('X coordinate')
-    plt.ylabel('Y coordinate')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
+        """
+        Plot the candidate energies as a heatmap.
+        
+        Parameters:
+        - data: Original data points (2D array)
+        - candidate_energy: Energy values for each candidate (1D array)
+        - synthetic_candidates: Positions of synthetic candidates (2D array)
+        """
+        plt.figure(figsize=(10, 8))
+        
+        # Create a scatter plot of the original data points
+        plt.scatter(data[:, 0], data[:, 1], c='blue', s=10, label='Original Data')
+        
+        # Create a scatter plot of the synthetic candidates colored by energy
+        sc = plt.scatter(synthetic_candidates[:, 0], synthetic_candidates[:, 1], 
+                        c=candidate_energy, cmap='viridis', s=50, 
+                        label='Synthetic Candidates')
+        
+        # Add colorbar
+        plt.colorbar(sc, label='Candidate Energy')
+        
+        plt.title('Candidate Energy Heatmap')
+        plt.xlabel('X coordinate')
+        plt.ylabel('Y coordinate')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
 
 
 

@@ -1,27 +1,40 @@
-"""
-Multi-User Federated Clustering (MUFC) Implementation
-Federated clustering with evaluation across multiple seeds.
-"""
+# -*- coding: utf-8 -*-
+# @Author: Yunbo
+# @Date:   2025-07-02 19:46:26
+# @Last Modified by:   Yunbo
+# @Last Modified time: 2025-07-04 13:21:56
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+#############################
+# MUFC Clustering Evaluation with Seeds
+#############################
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
 from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
 from sklearn.metrics.pairwise import euclidean_distances
+import argparse
+import time
+from tqdm import tqdm
+import copy
+import os
+import os.path as osp
+import pickle
 from concurrent.futures import ProcessPoolExecutor
 import multiprocessing as mp
-import pickle
 import json
-import time
 import os
-import copy
 
-# Optional GPU support
+# Check GPU availability
 try:
     import cupy as cp
     GPU_AVAILABLE = True
 except ImportError:
     GPU_AVAILABLE = False
 
+# Seeds for evaluation
 SEEDS = list(range(100))
 
 class MyKmeans:

@@ -1,12 +1,6 @@
-# Topological Federated Clustering via Gravitational Potential Fields (GFC)
+# CFC Federated Clustering
 
-🎉 **ACCEPTED AT AAAI 2026 MAIN TECHNICAL TRACK** 🎉
-
-**Topological Federated Clustering via Gravitational Potential Fields under Local Differential Privacy**
-
-📄 [**Paper**](https://arxiv.org/abs/placeholder) | 🌐 [**Project Page**](https://yunbo-max.github.io/GFC/) 
-
-A collection of professional federated clustering algorithms implementing Gravitational Federated Clustering (GFC) and related variants using gravitational potential fields for topological clustering under local differential privacy.
+A collection of professional federated clustering algorithms implementing Constrained Federated Clustering (CFC) and other variants.
 
 ## Code Improvements Made
 
@@ -14,7 +8,7 @@ A collection of professional federated clustering algorithms implementing Gravit
 
 #### **All Python Files Professionalized:**
 - **`main.py`** - Clean experiment runner with proper error handling
-- **`models/cfc.py`** - Streamlined GFC implementation 
+- **`models/cfc.py`** - Streamlined CFC implementation 
 - **`models/final.py`** - Advanced clustering with proper imports
 - **`models/final_ori.py`** - Original variant with tree-based region tracking
 - **`models/final_high.py`** - High-dimensional clustering specialization  
@@ -39,7 +33,7 @@ A collection of professional federated clustering algorithms implementing Gravit
 ├── main.py                    # Unified experiment runner
 ├── configs/                   # JSON configuration files  
 ├── models/
-│   ├── cfc.py                # Core GFC implementation
+│   ├── cfc.py                # Core CFC implementation
 │   ├── final.py              # Advanced multi-dimensional clustering
 │   ├── final_ori.py          # Tree-based region tracking variant
 │   ├── final_high.py         # High-dimensional data specialization
@@ -54,8 +48,8 @@ A collection of professional federated clustering algorithms implementing Gravit
 
 ### 🚀 **Core Features**
 
-- **Local Differential Privacy** - Laplace noise for privacy preservation under LDP
-- **Gravitational Potential Fields** - Topological clustering using gravitational potential analogies
+- **Differential Privacy** - Laplace noise for privacy preservation
+- **Synthetic Centroids** - Energy-based centroid generation using electrical potential analogies
 - **Multi-processing** - Parallel execution for large-scale experiments  
 - **Optional GPU Acceleration** - CUDA support when available (cupy/cuml)
 - **Flexible Configuration** - JSON-based parameter management
@@ -64,7 +58,7 @@ A collection of professional federated clustering algorithms implementing Gravit
 ### 📊 **Usage Examples**
 
 ```bash
-# Standard GFC clustering
+# Standard CFC clustering
 python main.py --config cfc --ep 0.1
 
 # High-dimensional data
@@ -94,3 +88,13 @@ Each algorithm supports customizable parameters via JSON configs:
 - **Multi-seed Statistics** - Mean ± standard deviation across random seeds
 - **Parallel Execution** - Efficient evaluation across multiple cores
 
+### 🎯 **Professional Standards Achieved**
+
+- **Clean Architecture** - Modular design with clear separation of concerns
+- **Error Handling** - Graceful failure with informative messages  
+- **Documentation** - Essential comments only, focused on technical insights
+- **Dependency Management** - Optional imports with fallback handling
+- **Code Style** - Consistent formatting and naming conventions
+- **Open Source Ready** - Professional appearance suitable for publication
+
+The codebase is now **production-ready** with clean, maintainable code that focuses on algorithmic innovation rather than verbose explanations.
