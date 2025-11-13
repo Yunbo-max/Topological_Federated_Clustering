@@ -68,8 +68,23 @@
       "candidates_multiplier": 2,
       "delta":5e2,
       "radius":1,
+      "counts":10
+    },
+    "mnist100": {
+      "k1": 200,
+      "candidates_multiplier": 2,
+      "delta":5e2,
+      "radius":1,
       "counts":100
     },
+    "mnist1000": {
+      "k1": 30,
+      "candidates_multiplier": 2,
+      "delta":5e2,
+      "radius":1,
+      "counts":100
+    },
+
     "postures": {
       "k1": 400,
       "candidates_multiplier": 10,

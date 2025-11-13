@@ -3370,3 +3370,93 @@ NMI (max) across seeds: [0.0955]
 Mean ± Std - ARI: 0.0842 ± 0.0000
 Mean ± Std - NMI: 0.0955 ± 0.0000
 
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.857]
+NMI (max) across seeds: [0.8829]
+Mean ± Std - ARI: 0.8570 ± 0.0000
+Mean ± Std - NMI: 0.8829 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.857]
+NMI (max) across seeds: [0.8829]
+Mean ± Std - ARI: 0.8570 ± 0.0000
+Mean ± Std - NMI: 0.8829 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.857]
+NMI (max) across seeds: [0.8829]
+Mean ± Std - ARI: 0.8570 ± 0.0000
+Mean ± Std - NMI: 0.8829 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: []
+NMI (max) across seeds: []
+Mean ± Std - ARI: nan ± nan
+Mean ± Std - NMI: nan ± nan
+
+dataset/mnist100fed.pkl
+ARI (max) across seeds: []
+NMI (max) across seeds: []
+Mean ± Std - ARI: nan ± nan
+Mean ± Std - NMI: nan ± nan
+
+dataset/mnist100fed.pkl
+ARI (max) across seeds: []
+NMI (max) across seeds: []
+Mean ± Std - ARI: nan ± nan
+Mean ± Std - NMI: nan ± nan
+
+dataset/abalonefed.pkl
+ARI (max) across seeds: [0.1611]
+NMI (max) across seeds: [0.149]
+Mean ± Std - ARI: 0.1611 ± 0.0000
+Mean ± Std - NMI: 0.1490 ± 0.0000
+
+dataset/abalonefed.pkl
+ARI (max) across seeds: [0.1611]
+NMI (max) across seeds: [0.149]
+Mean ± Std - ARI: 0.1611 ± 0.0000
+Mean ± Std - NMI: 0.1490 ± 0.0000
+
+dataset/abalonefed.pkl
+ARI (max) across seeds: [0.1886]
+NMI (max) across seeds: [0.1617]
+Mean ± Std - ARI: 0.1886 ± 0.0000
+Mean ± Std - NMI: 0.1617 ± 0.0000
+
+dataset/abalonefed.pkl
+ARI (max) across seeds: [0.1647]
+NMI (max) across seeds: [0.1446]
+Mean ± Std - ARI: 0.1647 ± 0.0000
+Mean ± Std - NMI: 0.1446 ± 0.0000
+
+dataset/abalonefed.pkl
+ARI (max) across seeds: [0.1886]
+NMI (max) across seeds: [0.1617]
+Mean ± Std - ARI: 0.1886 ± 0.0000
+Mean ± Std - NMI: 0.1617 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.7742]
+NMI (max) across seeds: [0.8489]
+Mean ± Std - ARI: 0.7742 ± 0.0000
+Mean ± Std - NMI: 0.8489 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.7537]
+NMI (max) across seeds: [0.8394]
+Mean ± Std - ARI: 0.7537 ± 0.0000
+Mean ± Std - NMI: 0.8394 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.6444]
+NMI (max) across seeds: [0.8111]
+Mean ± Std - ARI: 0.6444 ± 0.0000
+Mean ± Std - NMI: 0.8111 ± 0.0000
+
+dataset/mnist2dfed.pkl
+ARI (max) across seeds: [0.857]
+NMI (max) across seeds: [0.8829]
+Mean ± Std - ARI: 0.8570 ± 0.0000
+Mean ± Std - NMI: 0.8829 ± 0.0000
+

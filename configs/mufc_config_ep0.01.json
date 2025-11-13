@@ -1,6 +1,7 @@
 {
   "model": "mufc",
-  "datanames": ["mnist2d"],
+  "datanames": ["seeds", "thyroid", "breast", "heart", "gesture", 
+             "abalone", "waveform", "celltypes", "mnist2d", "postures"],
   "seed": 1,
   "n_runs": 1,
   "epsilon": 0.01,
@@ -15,6 +16,8 @@
   "thyroid": { "k1": 1, "k2": 20 },
   "waveform": { "k1": 1, "k2": 20 },
   "mnist2d": { "k1": 2, "k2": 25 },
+  "mnist100": { "k1": 2, "k2": 25 },
+  "mnist1000": { "k1": 2, "k2": 25 },
   "postures": { "k1": 1, "k2": 20 },
   "celltypes": { "k1": 1, "k2": 20 }
 }

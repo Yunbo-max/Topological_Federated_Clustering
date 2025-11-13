@@ -360,18 +360,18 @@ def penalized_energy_centroids(data, nc, all_masses,candidates_multiplier, energ
     # Reshape energy to grid
     energy_grid = total_energy.reshape((grid_size, grid_size))
 
-    # Plot with colorbar
-    plt.imshow(energy_grid, cmap='viridis', origin='lower')
-    plt.colorbar(label='Energy Level')
-    plt.title(f'Initial Energy Field\nGrid Size: {grid_size}x{grid_size}')
-    plt.xlabel('Grid X')
-    plt.ylabel('Grid Y')
+    # # Plot with colorbar
+    # plt.imshow(energy_grid, cmap='viridis', origin='lower')
+    # plt.colorbar(label='Energy Level')
+    # plt.title(f'Initial Energy Field\nGrid Size: {grid_size}x{grid_size}')
+    # plt.xlabel('Grid X')
+    # plt.ylabel('Grid Y')
 
-    # Add grid lines
-    plt.grid(True, color='white', linestyle='--', alpha=0.3)
+    # # Add grid lines
+    # plt.grid(True, color='white', linestyle='--', alpha=0.3)
 
-    plt.tight_layout()
-    plt.show()
+    # plt.tight_layout()
+    # plt.show()
 
     
     for i, threshold in enumerate(thresholds):
@@ -565,19 +565,19 @@ def SNN_optimized(nc: int, data: np.ndarray,all_masses,candidates_multiplier, en
     
     # Visualization
 
-    # Visualization with true labels
-    plot_clusters(data, syn_centroids, energy, true_labels=true_labels, assignments=indexAssignment)
-    plot_clusters2(synthetic_candidates, total_energy, syn_centroids)
+#     # Visualization with true labels
+#     plot_clusters(data, syn_centroids, energy, true_labels=true_labels, assignments=indexAssignment)
+#     plot_clusters2(synthetic_candidates, total_energy, syn_centroids)
    
     
 
-    plot_energy_3d(
-    candidate_points=synthetic_candidates,
-    total_energy=total_energy,
-    synthetic_centroids=syn_centroids,
-    true_labels=true_labels  # optional
-)
-    plot_contour_layers(synthetic_candidates, total_energy)
+#     plot_energy_3d(
+#     candidate_points=synthetic_candidates,
+#     total_energy=total_energy,
+#     synthetic_centroids=syn_centroids,
+#     true_labels=true_labels  # optional
+# )
+#     plot_contour_layers(synthetic_candidates, total_energy)
     
     return syn_centroids, None
 
@@ -1148,7 +1148,7 @@ def run_experiments_parallel(data_path, n_runs=1000, n_processes=None, use_gpu=T
 
 
 
-
+import time
 
 def evaluate_with_seeds(data_path, use_gpu=True, n_runs=100, n_processes=None,k1=None,dataset=None,seed=None,candidates_multiplier=None,energy_multiplier=None,epsilon=None,delta=None,counts=None):
     """Evaluate performance across 10 seeds"""
@@ -1157,7 +1157,14 @@ def evaluate_with_seeds(data_path, use_gpu=True, n_runs=100, n_processes=None,k1
     
     for seed in SEEDS:
         print(f"\n--- Evaluating with seed={seed} ---")
+
+        start_time = time.time()
         results = run_experiments_parallel(data_path, n_runs, n_processes, use_gpu,k1,dataset,candidates_multiplier,energy_multiplier,epsilon,delta=delta,counts=counts,seed=seed)
+
+        # Calculate and print elapsed time
+        elapsed_time = time.time() - start_time
+        print(f"Completed in: {elapsed_time:.2f} seconds")
+        print(f"End time: {time.strftime('%Y-%m-%d %H:%M:%S')}")
         ari_scores = [r[0] for r in results if r[0] > 0]
         nmi_scores = [r[1] for r in results if r[1] > 0]
         

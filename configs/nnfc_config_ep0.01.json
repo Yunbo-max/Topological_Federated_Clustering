@@ -1,7 +1,8 @@
 {
   "model": "nnfc",
-  "datanames": ["abalone","waveform", "balancescale", "breast", "gesture", "heart", "seeds", "thyroid", "mnist2d", "postures", "celltypes"],
-  "seed": 20,
+  "datanames": ["seeds", "thyroid", "breast", "heart", "gesture", 
+             "abalone", "waveform", "celltypes", "mnist2d", "postures"],
+  "seed": 1,
   "n_runs": 1,
   "epsilon": 0.01,
   "save_path": "paper/nnfc_epsilon_0.01.txt",

@@ -1,6 +1,6 @@
 {
   "model": "final",
-  "datanames": ["gesture"],
+  "datanames": ["mnist2d"],
   "seed":1,
   "n_runs": 1,
   "epsilon": 1000,
@@ -8,7 +8,7 @@
   "save_path": "paper/final_epsilon_1000.txt",
   
   "abalone": {
-      "k1": 20,
+      "k1": 15,
       "candidates_multiplier": 10,
       "delta":1,
       "radius":0.6,
@@ -65,6 +65,16 @@
       "radius":1,
       "counts":10
     },
+    
+    "mnist100": {
+       "k1": 200,
+      "candidates_multiplier": 5,
+      "energy_multiplier": 2,
+      "delta":5e-4,
+      "radius":1,
+      "counts":10
+    },
+  
 
     "postures": {
       "k1": 200,

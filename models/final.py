@@ -4,6 +4,7 @@
 # @Last Modified by:   Yunbo
 # @Last Modified time: 2025-07-05 22:37:23
 import umap
+import time
 import json
 import os
 from scipy.spatial.distance import pdist, squareform, cdist
@@ -272,7 +273,7 @@ def plot_region_evolution(region_evolution, energy_grid_shape):
         
         # Plot as image
         im = ax.imshow(region_grid, cmap='tab20', origin='lower')
-        ax.set_title(f"Thresh: {info['threshold']:.2f}\nRegions: {info['n_regions']}", fontsize=10)
+        ax.set_title(f"Thresh: {info['threshold']:.2f}\nRegions: {info['n_regions']}", fontsize=24)
         
         # Add colorbar for first plot
         if step == last_steps[0][0]:
@@ -762,16 +763,15 @@ def SNN_optimized(nc: int, data: np.ndarray, all_masses, candidates_multiplier, 
 
 
 
-
-# import numpy as np
-# import matplotlib.pyplot as plt
-# from mpl_toolkits.mplot3d import Axes3D
-# from matplotlib import cm
-# from scipy.interpolate import griddata
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import cm
+from scipy.interpolate import griddata
 
 # def plot_contour_layers(candidate_points, total_energy):
 #     """
-#     Plot 3 solid planes with contour cutouts showing where energy exceeds each level
+#     Plot 3 clearly spaced contour planes at 10%, 30%, and 50% energy levels
     
 #     Parameters:
 #     - candidate_points: 2D array of candidate points (shape Nx2)
@@ -782,64 +782,71 @@ def SNN_optimized(nc: int, data: np.ndarray, all_masses, candidates_multiplier, 
 #     yi = np.linspace(min(candidate_points[:,1]), max(candidate_points[:,1]), 200)
 #     zi = griddata(candidate_points, total_energy, (xi[None,:], yi[:,None]), method='cubic')
     
-#     # Calculate layer heights (10%, 50%, 90% of energy range)
+#     # Calculate specific layer heights (10%, 30%, 50%)
 #     min_e, max_e = np.nanmin(zi), np.nanmax(zi)
-#     levels = [min_e + (max_e-min_e)*h for h in [0.1, 0.25,0.5,0.75]]
+#     level_percentages = [0.1, 0.3, 0.5]
+#     levels = [min_e + (max_e-min_e)*h for h in level_percentages]
     
-#     # Create figure
-#     fig = plt.figure(figsize=(14, 10))
+#     # Apply vertical scaling (3x) to enhance spacing between planes
+#     vertical_scale = 3.0
+#     scaled_levels = [min_e + (l-min_e)*vertical_scale for l in levels]
+    
+#     # Create figure with adjusted aspect ratio (4x4x3)
+#     fig = plt.figure(figsize=(8, 6))
 #     ax = fig.add_subplot(111, projection='3d')
     
-#     # Create colormap for planes
-#     colors = ['skyblue', 'lightgreen', 'mistyrose']
+#     # Set the 4x4x3 aspect ratio
+#     ax.set_box_aspect([4, 4, 3])  # Width:Depth:Height ratio
     
-#     # Plot each plane with holes
+#     # Create distinct colors for each plane
+#     colors = ['#1f77b4', '#ff7f0e', '#2ca02c']  # Three distinct colors
+    
+#     # Plot each plane with contours
 #     X, Y = np.meshgrid(xi, yi)
-#     for i, (level, color) in enumerate(zip(levels, colors)):
-#         # Create mask for regions BELOW current level (the "holes")
-#         mask = zi < level
-        
+#     for i, (level, color) in enumerate(zip(scaled_levels, colors)):
 #         # Create semi-transparent plane
 #         ax.plot_surface(X, Y, np.full_like(X, level), 
-#                         color=color, alpha=0.5, shade=False)
+#                        color=color, alpha=0.5, shade=False)
         
 #         # Add contour lines at the plane edges
-#         contours = ax.contour(X, Y, zi, levels=[level], 
-#                              colors=[color], linestyles='solid', linewidths=2)
+#         cs = ax.contour(X, Y, zi, levels=[levels[i]], 
+#                        colors=[color], linestyles='solid', linewidths=2,
+#                        offset=level)
         
-#         # Fill the holes (regions below threshold)
-#         if i > 0:  # Skip for bottom plane to see through
-#             ax.contourf(X, Y, mask.astype(float), levels=[0.5, 1.5], 
-#                         colors=['none', color], alpha=0.3, zdir='z', offset=level)
+#         # Label the contours with their percentage
+#         ax.clabel(cs, cs.levels, inline=True, fmt=f'{level_percentages[i]*100:.0f}%', 
+#                  fontsize=20, colors='black')
+
+#     # Style the plot with uniform font sizes
+#     ax.set_xlabel('Dimension 1', fontsize=20, labelpad=10)
+#     ax.set_ylabel('Dimension 2', fontsize=20, labelpad=10)
+#     ax.set_zlabel('Energy Level', fontsize=20, labelpad=10)
     
-#     # Style the plot
-#     ax.set_xlabel('X Coordinate')
-#     ax.set_ylabel('Y Coordinate')
-#     ax.set_zlabel('Energy Level')
-#     # ax.set_title('Energy Field Contour Planes with Cutouts')
-#     ax.view_init(elev=30, azim=45)
+#     # Set tick label sizes
+#     ax.tick_params(axis='x', labelsize=18)
+#     ax.tick_params(axis='y', labelsize=18)
+#     ax.tick_params(axis='z', labelsize=18)
     
-#     # Create custom legend
+#     # Adjust view angle for better visualization
+#     ax.view_init(elev=40, azim=-50)
+    
+#     # Create clean legend with matching font size
 #     from matplotlib.patches import Patch
 #     legend_elements = [
-#         Patch(facecolor='skyblue', alpha=0.5, label=f'Base Plane ({levels[0]:.1f})'),
-#         Patch(facecolor='lightgreen', alpha=0.5, label=f'Mid Plane ({levels[1]:.1f})'),
-#         Patch(facecolor='mistyrose', alpha=0.5, label=f'Top Plane ({levels[2]:.1f})')
+#         Patch(facecolor=colors[i], alpha=0.5, 
+#               label=f'{int(p*100)}% Level')
+#         for i, p in enumerate(level_percentages)
 #     ]
-#     ax.legend(handles=legend_elements, loc='upper right')
+#     ax.legend(handles=legend_elements, loc='upper right', 
+#               fontsize=20, framealpha=0.9)
     
 #     plt.tight_layout()
 #     plt.show()
 
-import numpy as np
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib import cm
-from scipy.interpolate import griddata
 
 def plot_contour_layers(candidate_points, total_energy):
     """
-    Plot 4 clearly spaced contour planes at 10%, 30%, 50%, and 70% energy levels
+    Plot 3 clearly spaced contour planes at 10%, 30%, and 50% energy levels
     
     Parameters:
     - candidate_points: 2D array of candidate points (shape Nx2)
@@ -850,60 +857,64 @@ def plot_contour_layers(candidate_points, total_energy):
     yi = np.linspace(min(candidate_points[:,1]), max(candidate_points[:,1]), 200)
     zi = griddata(candidate_points, total_energy, (xi[None,:], yi[:,None]), method='cubic')
     
-    # Calculate specific layer heights (10%, 30%, 50%, 70%)
+    # Calculate specific layer heights (10%, 30%, 50%)
     min_e, max_e = np.nanmin(zi), np.nanmax(zi)
-    level_percentages = [0.1, 0.3, 0.5, 0.7]
+    level_percentages = [0.1, 0.3, 0.5]
     levels = [min_e + (max_e-min_e)*h for h in level_percentages]
     
     # Apply vertical scaling (3x) to enhance spacing between planes
     vertical_scale = 3.0
     scaled_levels = [min_e + (l-min_e)*vertical_scale for l in levels]
     
-    # Create figure
-    fig = plt.figure(figsize=(8, 6))
+    # Create figure with adjusted aspect ratio
+    fig = plt.figure(figsize=(10, 7))  # Increased figure size
     ax = fig.add_subplot(111, projection='3d')
+    ax.set_box_aspect([4, 4, 3])
     
     # Create distinct colors for each plane
-    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']  # Distinct qualitative colors
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c']
     
     # Plot each plane with contours
     X, Y = np.meshgrid(xi, yi)
     for i, (level, color) in enumerate(zip(scaled_levels, colors)):
-        # Create semi-transparent plane
         ax.plot_surface(X, Y, np.full_like(X, level), 
                        color=color, alpha=0.5, shade=False)
-        
-        # Add thick contour lines at the plane edges
         cs = ax.contour(X, Y, zi, levels=[levels[i]], 
                        colors=[color], linestyles='solid', linewidths=2,
                        offset=level)
-        
-        # Label the contours with their percentage
         ax.clabel(cs, cs.levels, inline=True, fmt=f'{level_percentages[i]*100:.0f}%', 
-                 fontsize=10, colors='black')
+                 fontsize=20, colors='black')
 
-    # Style the plot
-    ax.set_xlabel('X Coordinate', fontsize=12, labelpad=10)
-    ax.set_ylabel('Y Coordinate', fontsize=12, labelpad=10)
-    ax.set_zlabel('Energy Level (Scaled)', fontsize=12, labelpad=10)
+    # Axis styling
+    ax.set_xlabel('Dimension 1', fontsize=20, labelpad=15)
+    ax.set_ylabel('Dimension 2', fontsize=20, labelpad=15)
+    ax.set_zlabel('Energy Level', fontsize=20, labelpad=15)
+    ax.tick_params(axis='x', labelsize=18, pad=8)
+    ax.tick_params(axis='y', labelsize=18, pad=8)
+    ax.tick_params(axis='z', labelsize=18, pad=8)
     
-    # Adjust view and aspect ratio
-    ax.view_init(elev=40, azim=-50)  # Optimal viewing angle
-    ax.set_box_aspect([1, 1, 2])     # Z-axis is 2x longer for better spacing
-    ax.dist = 11                      # Slightly zoom out
+    # Adjust view and legend position
+    ax.view_init(elev=35, azim=-45)  # Slightly lowered view angle
     
-    # Create clean legend
-    from matplotlib.patches import Patch
+    # Create and position legend outside the plot
     legend_elements = [
         Patch(facecolor=colors[i], alpha=0.5, 
-              label=f'{int(p*100)}% Level: {levels[i]:.2f}')
+              label=f'{int(p*100)}% Level')
         for i, p in enumerate(level_percentages)
     ]
-    ax.legend(handles=legend_elements, loc='upper right', 
-              framealpha=0.9, fontsize=10)
     
-    plt.tight_layout()
+    # Position legend in lower right with more space
+    ax.legend(handles=legend_elements, 
+              loc='lower right',
+              bbox_to_anchor=(0.85, 0.25),  # Adjusted position
+              fontsize=18,
+              framealpha=0.95,
+              borderpad=1.2)
+
+    # Adjust subplot parameters to prevent overlap
+    plt.subplots_adjust(right=0.85, bottom=0.15)
     plt.show()
+
 
 def plot_clusters(data, synthetic_centroids, energy, true_labels=None, assignments=None):
     """Visualize clusters in 2D or higher dimensions using t-SNE when needed"""
@@ -979,13 +990,16 @@ def plot_clusters(data, synthetic_centroids, energy, true_labels=None, assignmen
     for i, centroid in enumerate(centroids_2d):
         plt.annotate(f'{i+1}', (centroid[0], centroid[1]), 
                     xytext=(5, 5), textcoords='offset points',
-                    fontsize=12, fontweight='bold', color='black')
+                    fontsize=24, fontweight='bold', color='black')
     
-    title_suffix = "with True Labels" if true_labels is not None else ""
-    # plt.title(f"{plot_title}Synthetic Centroids {title_suffix}")
-    plt.xlabel('Component 1' if d > 2 else 'Feature 1')
-    plt.ylabel('Component 2' if d > 2 else 'Feature 2')
-    plt.legend(loc='lower right', framealpha=0.9)
+    # Configure axis labels and ticks
+    plt.xlabel('Dimension 1', fontsize=24)  # Changed from 'Component 1'
+    plt.ylabel('Dimension 2', fontsize=24)  # Changed from 'Component 2'
+    
+    # Set tick parameters for both axes
+    plt.tick_params(axis='both', which='major', labelsize=24)
+    
+    plt.legend(loc='lower right', framealpha=0.9, prop={'size': 14})
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.show()
@@ -1009,7 +1023,7 @@ def plot_clusters2(candidate_points, total_energy, synthetic_centroids):
     if candidate_points.shape[1] != 2:
         raise ValueError("Candidate points must be 2-dimensional for heatmap visualization")
     
-    plt.figure(figsize=(8, 6))
+    plt.figure(figsize=(10, 8))  # Increased figure size for better visibility
     
     # Create grid interpolation for smooth heatmap
     from scipy.interpolate import griddata
@@ -1025,8 +1039,7 @@ def plot_clusters2(candidate_points, total_energy, synthetic_centroids):
         total_energy, 
         (grid_x, grid_y), 
         method='cubic',
-        fill_value=np.min(total_energy)
-    )
+        fill_value=np.min(total_energy))
     
     # Plot heatmap
     plt.imshow(
@@ -1036,12 +1049,12 @@ def plot_clusters2(candidate_points, total_energy, synthetic_centroids):
         origin='lower',
         aspect='auto',
         cmap='viridis',
-        alpha=0.8
-    )
+        alpha=0.8)
     
-    # Add colorbar
+    # Add colorbar with larger font
     cbar = plt.colorbar()
-    cbar.set_label('Energy Value', rotation=270, labelpad=20)
+    cbar.set_label('Energy Value', rotation=270, labelpad=25, fontsize=24)
+    cbar.ax.tick_params(labelsize=24)  # Colorbar tick labels
     
     # Mark centroids
     plt.scatter(
@@ -1052,8 +1065,7 @@ def plot_clusters2(candidate_points, total_energy, synthetic_centroids):
         c='gold',
         edgecolors='black',
         linewidths=1.5,
-        label='Centroids'
-    )
+        label='Centroids')
     
     # Add numbering to centroids
     for i, (x, y) in enumerate(synthetic_centroids):
@@ -1062,15 +1074,22 @@ def plot_clusters2(candidate_points, total_energy, synthetic_centroids):
             (x, y),
             xytext=(5, 5),
             textcoords='offset points',
-            fontsize=12,
+            fontsize=24,
             fontweight='bold',
-            color='white'
-        )
+            color='white')
     
-    # plt.title('Energy Field Heatmap with Centroids')
-    plt.xlabel('Feature 1')
-    plt.ylabel('Feature 2')
-    plt.legend(loc='upper right')
+    # Configure axis labels and ticks
+    plt.xlabel('Dimension 1', fontsize=24)
+    plt.ylabel('Dimension 2', fontsize=24)
+    plt.tick_params(axis='both', which='major', labelsize=24)
+    
+    # Configure legend
+    plt.legend(
+        loc='upper right',
+        fontsize=20,  # Larger legend font
+        framealpha=0.9,
+        markerscale=1.5)
+    
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
     plt.show()
@@ -1078,7 +1097,6 @@ def plot_clusters2(candidate_points, total_energy, synthetic_centroids):
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
-
 def plot_energy_3d(candidate_points, total_energy, synthetic_centroids=None, true_labels=None):
     """
     Visualize the energy field in 3D with peaks and geometric landscape
@@ -1089,9 +1107,9 @@ def plot_energy_3d(candidate_points, total_energy, synthetic_centroids=None, tru
     - synthetic_centroids: Optional centroids to plot
     - true_labels: Optional true labels for coloring original points
     """
-    fig = plt.figure(figsize=(8, 6))
+    fig = plt.figure(figsize=(10, 8))  # Increased figure size
     
-    # Create 3D axis
+    # Create 3D axis with larger font sizes
     ax = fig.add_subplot(111, projection='3d')
     
     # Check if we need to reduce dimensions
@@ -1112,7 +1130,6 @@ def plot_energy_3d(candidate_points, total_energy, synthetic_centroids=None, tru
     
     # Create surface or scatter plot based on point density
     if len(candidate_points) > 1000:  # For large datasets, use surface plot
-        # Create grid interpolation
         from scipy.interpolate import griddata
         grid_x, grid_y = np.mgrid[
             np.min(projected_points[:,0]):np.max(projected_points[:,0]):100j,
@@ -1147,55 +1164,42 @@ def plot_energy_3d(candidate_points, total_energy, synthetic_centroids=None, tru
             linewidth=0.5
         )
     
-    # # Plot synthetic centroids if provided
-    # if synthetic_centroids is not None:
-    #     # Get energy values for centroids by finding nearest candidates
-    #     dists = cdist(projected_centroids, projected_points)
-    #     nearest_indices = np.argmin(dists, axis=1)
-    #     centroid_energies = total_energy[nearest_indices]
-        
-    #     ax.scatter(
-    #         projected_centroids[:,0],
-    #         projected_centroids[:,1],
-    #         centroid_energies,
-    #         marker='*',
-    #         s=400,
-    #         c='gold',
-    #         edgecolors='black',
-    #         depthshade=True,
-    #         label='Centroids'
-    #     )
-        
-    #     # Add labels to centroids
-    #     for i, (x, y, z) in enumerate(zip(
-    #         projected_centroids[:,0],
-    #         projected_centroids[:,1],
-    #         centroid_energies
-    #     )):
-    #         ax.text(x, y, z, f'{i+1}', color='black', fontsize=12, fontweight='bold')
-    
-    # Add colorbar
+    # Add colorbar with large font
     mappable = cm.ScalarMappable(cmap=cm.viridis)
     mappable.set_array(total_energy)
     cbar = fig.colorbar(mappable, ax=ax, shrink=0.5, aspect=10)
-    cbar.set_label('Energy Value', rotation=270, labelpad=20)
+    cbar.set_label('Gravitational Energy', rotation=270, labelpad=25, fontsize=24)
+    cbar.ax.tick_params(labelsize=20)  # Larger tick labels
+
+    # Set labels with large font
+    ax.set_xlabel('Dimension 1', fontsize=24, labelpad=15)
+    ax.set_ylabel('Dimension 2', fontsize=24, labelpad=15)
+    ax.set_zlabel('Gravitational Energy', fontsize=24, labelpad=15)
     
-    # Set labels and title
-    ax.set_xlabel('X Coordinate')
-    ax.set_ylabel('Y Coordinate')
-    ax.set_zlabel('Energy Value')
-    # ax.set_title('3D Energy Landscape with Peaks')
+    # Set tick label sizes
+    ax.tick_params(axis='x', labelsize=20)
+    ax.tick_params(axis='y', labelsize=20)
+    ax.tick_params(axis='z', labelsize=20)
     
-    # Add legend if centroids are present
+    # Add centroids if provided
     if synthetic_centroids is not None:
-        ax.legend()
-    
-    # Adjust view angle for better visualization
+        ax.scatter(
+            projected_centroids[:,0], 
+            projected_centroids[:,1], 
+            np.max(total_energy)*1.1,  # Slightly above surface
+            marker='*',
+            s=200,
+            c='gold',
+            edgecolors='black',
+            linewidths=1,
+            label='Centroids'
+        )
+        ax.legend(fontsize=18, loc='upper right')
+
+    # Adjust view angle and layout
     ax.view_init(elev=30, azim=45)
-    
     plt.tight_layout()
     plt.show()
-
 
 
 def add_laplace_noise_vectorized(data, epsilon, sensitivity):
@@ -1353,7 +1357,17 @@ def evaluate_with_seeds(data_path, use_gpu=True, n_runs=100, n_processes=None,k1
     
     for seed in SEEDS:
         print(f"\n--- Evaluating with seed={seed} ---")
+
+        start_time = time.time()
+
+        
         results = run_experiments_parallel(data_path, n_runs, n_processes, use_gpu,k1,dataset,candidates_multiplier,energy_multiplier,epsilon,delta,radius=radius,counts=counts,seed=seed)
+
+        # Calculate and print elapsed time
+        elapsed_time = time.time() - start_time
+        print(f"Completed in: {elapsed_time:.2f} seconds")
+        print(f"End time: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+
         ari_scores = [r[0] for r in results if r[0] > 0]
         nmi_scores = [r[1] for r in results if r[1] > 0]
         

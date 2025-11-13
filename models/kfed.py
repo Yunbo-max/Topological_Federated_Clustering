@@ -4,7 +4,7 @@
 # # @Last Modified by:   Yunbo
 # # @Last Modified time: 2025-07-04 00:29:08
 
-
+import time
 import numpy as np
 import scipy
 import scipy.sparse as sps
@@ -381,8 +381,8 @@ def run_single_experiment(args):
         # k1 is dev_k (clusters per device), k_true is final number of clusters
         local_estimates, final_centers = kfed(x_fed, k1, k_true, useSKLearn=True, sparse=False)
 
-        # Visualization with true labels
-        plot_clusters(serverdata, final_centers, energy=None, true_labels=centroid_true_labels)
+        # # Visualization with true labels
+        # plot_clusters(serverdata, final_centers, energy=None, true_labels=centroid_true_labels)
 
         
             
@@ -541,9 +541,17 @@ def evaluate_with_seeds(data_path, use_gpu=False, n_runs=1000, n_processes=None,
         
         # Set global seed for this iteration
         np.random.seed(seed)
+
+        # Start timer
+        start_time = time.time()
         
         results = run_experiments_parallel(data_path, n_runs, n_processes, use_gpu, k1, k2, epsilon, seed)
-        
+
+        # Calculate and print elapsed time
+        elapsed_time = time.time() - start_time
+        print(f"Completed in: {elapsed_time:.2f} seconds")
+        print(f"End time: {time.strftime('%Y-%m-%d %H:%M:%S')}")
+            
         # Handle None/NaN/NA values by converting them to 0
         ari_scores = [r[0] if r[0] is not None and not np.isnan(r[0]) else 0 for r in results]
         nmi_scores = [r[1] if r[1] is not None and not np.isnan(r[1]) else 0 for r in results]

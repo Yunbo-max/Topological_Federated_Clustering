@@ -9,7 +9,7 @@
 #############################
 # MUFC Clustering Evaluation with Seeds
 #############################
-
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
@@ -115,6 +115,7 @@ def run_mufc_clustering(data_path, k1, k2, seed, num_clients=10, client_oversamp
     quant_eps = 1 / np.sqrt(dataset["full_data"].shape[0])
     
     print(f'Running MUFC with {num_clients} clients, k1={k1}, k_true={k_true}')
+    # num_clients = 1000
     
     # Prepare federated data with differential privacy noise
     scale = 1 / epsilon
@@ -187,8 +188,8 @@ def run_mufc_clustering(data_path, k1, k2, seed, num_clients=10, client_oversamp
     
     final_centroids = kmeans_server.cluster_centers_
 
-    # Visualization with true labels
-    plot_clusters(serverdata, final_centroids, energy=None, true_labels=centroid_true_labels)
+    # # Visualization with true labels
+    # plot_clusters(serverdata, final_centroids, energy=None, true_labels=centroid_true_labels)
 
     
     print(f'Final centroids shape: {final_centroids.shape}')
@@ -352,8 +353,17 @@ def evaluate_with_seeds(data_path, use_gpu=False, n_runs=1000, n_processes=None,
         
         # Set global seed for this iteration
         np.random.seed(seed)
+
+        # Start timer
+        start_time = time.time()
+
         
         results = run_experiments_parallel(data_path, n_runs, n_processes, use_gpu, k1, k2, epsilon, seed)
+
+        # Calculate and print elapsed time
+        elapsed_time = time.time() - start_time
+        print(f"Completed in: {elapsed_time:.2f} seconds")
+        print(f"End time: {time.strftime('%Y-%m-%d %H:%M:%S')}")
         
         # Handle None/NaN/NA values by converting them to 0
         ari_scores = [r[0] if r[0] is not None and not np.isnan(r[0]) else 0 for r in results]
